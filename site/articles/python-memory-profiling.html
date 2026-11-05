@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Профилирование памяти асинхронных Python демонов — Alexei Mizanov</title>
+  <meta name="description" content="Методология обнаружения утечек памяти в долгоживущих сервисах на Python 3.12 (AsyncIO) при работе в ограниченных контейнерах.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="article-page">
+
+  <header>
+    <nav class="floating-bar">
+      <a href="/" class="brand">
+        <span class="brand-symbol">AM</span>
+        <span>mizanov<span style="color: var(--text-secondary)">.dev</span></span>
+      </a>
+      <div class="nav-right">
+        <a href="/" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">← Портфолио</a>
+        <button id="themeToggle" class="theme-toggle-btn" aria-label="Сменить тему"></button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="article-content-wrapper">
+    <a href="/#articles" class="back-link">← Назад к списку статей</a>
+
+    <header class="article-meta-header">
+      <span class="card-badge">Python & AsyncIO</span>
+      <h1 class="article-main-title">Профилирование памяти асинхронных Python демонов в изолированных контейнерах</h1>
+      <div class="article-info-bar">
+        <span>Автор: Алексей Мизанов</span>
+        <span>•</span>
+        <span>Опубликовано: Сентябрь 2026</span>
+        <span>•</span>
+        <span>Время чтения: 10 минут</span>
+      </div>
+    </header>
+
+    <article class="article-body">
+      <p>
+        В микросервисной архитектуре и телеком-ботах на Python (таких как боты управления на <code>python-telegram-bot</code> или демоны синхронизации) процессы работают непрерывно месяцами. На виртуальных серверах с 1–2 GB RAM постепенная утечка даже 2–3 мегабайт в день рано или поздно приводит к срабатыванию механизма ядра Linux <code>OOM Killer</code>, который без предупреждения завершает процесс.
+      </p>
+
+      <h2>Типичные источники утечек в asyncio</h2>
+      <p>
+        В отличие от классического синхронного кода, в асинхронных приложениях утечки чаще всего связаны не с открытыми файловыми дескрипторами, а с жизненным циклом корутин и ссылочными связями:
+      </p>
+      <ul>
+        <li><strong>Незавершённые фоновые Task:</strong> Создание задач через <code>asyncio.create_task()</code> без сохранения ссылки в множестве (set) или без обработки исключений приводит к накоплению "висячих" корутин в event loop.</li>
+        <li><strong>Замыкания в Callback-функциях:</strong> Привязка обработчиков событий, удерживающих ссылки на тяжелые объекты контекста (например, полные JSON-конфиги или декодированные медиафайлы).</li>
+        <li><strong>Глобальные кэши без TTL:</strong> Неограниченно растущие словари (dicts) истории пользовательских сессий.</li>
+      </ul>
+
+      <h2>Инструментарий диагностики: tracemalloc</h2>
+      <p>
+        Встроенный модуль <code>tracemalloc</code> позволяет отслеживать точные строки кода, аллоцирующие память в рантайме, практически без снижения производительности сервиса:
+      </p>
+
+      <pre><code>import asyncio
+import tracemalloc
+import logging
+
+logger = logging.getLogger("mem-sentinel")
+
+async def memory_monitor_daemon(interval_sec: int = 3600):
+    tracemalloc.start(25) # сохраняем до 25 кадров стека вызовов
+    snapshot_prev = None
+
+    while True:
+        await asyncio.sleep(interval_sec)
+        snapshot_curr = tracemalloc.take_snapshot()
+
+        if snapshot_prev:
+            top_stats = snapshot_curr.compare_to(snapshot_prev, 'lineno')
+            logger.info("--- ТОП 5 ПРИРОСТА ПАМЯТИ ПО СТРОКАМ ---")
+            for stat in top_stats[:5]:
+                logger.info(str(stat))
+
+        snapshot_prev = snapshot_curr</code></pre>
+
+      <h2>Ограничение ресурсов через Systemd</h2>
+      <p>
+        Чтобы процесс не мог занять всю память операционной системы и уронить критические службы (Nginx, Sing-Box), в системный юнит <code>.service</code> всегда добавляются лимиты cgroups:
+      </p>
+
+      <pre><code># /etc/systemd/system/bot.service
+
+[Service]
+MemoryMax=150M
+MemoryHigh=120M
+Restart=always
+RestartSec=5</code></pre>
+
+      <p>
+        При достижении отметки <code>MemoryHigh</code> ядро начинает активно вытеснять неиспользуемые страницы процесса в swap, а если утечка прогрессирует до <code>MemoryMax</code>, сервис перезапускается за доли секунды без остановки всей ОС.
+      </p>
+    </article>
+
+    <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
+      <a href="/#articles" class="btn btn-secondary">← Вернуться к остальным статьям</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>© 2026 Alexei Mizanov. Лаборатория системной архитектуры.</div>
+      <div class="footer-nav">
+        <a href="/">Главная</a>
+        <a href="/robots.txt">robots.txt</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>

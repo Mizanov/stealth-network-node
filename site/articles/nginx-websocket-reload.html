@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Бесшовный reload Nginx при WebSocket соединениях — Alexei Mizanov</title>
+  <meta name="description" content="Архитектурное решение проблемы обрыва активных WebSocket сессий при перезагрузке конфигурации Nginx под высокой нагрузкой.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="article-page">
+
+  <header>
+    <nav class="floating-bar">
+      <a href="/" class="brand">
+        <span class="brand-symbol">AM</span>
+        <span>mizanov<span style="color: var(--text-secondary)">.dev</span></span>
+      </a>
+      <div class="nav-right">
+        <a href="/" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">← Портфолио</a>
+        <button id="themeToggle" class="theme-toggle-btn" aria-label="Сменить тему"></button>
+      </div>
+    </nav>
+  </header>
+
+  <main class="article-content-wrapper">
+    <a href="/#articles" class="back-link">← Назад к списку статей</a>
+
+    <header class="article-meta-header">
+      <span class="card-badge">Nginx & HighLoad</span>
+      <h1 class="article-main-title">Бесшовный reload Nginx при десятках тысяч постоянных WebSocket соединений</h1>
+      <div class="article-info-bar">
+        <span>Автор: Алексей Мизанов</span>
+        <span>•</span>
+        <span>Опубликовано: Октябрь 2026</span>
+        <span>•</span>
+        <span>Время чтения: 8 минут</span>
+      </div>
+    </header>
+
+    <article class="article-body">
+      <p>
+        В веб-сервисах со стандартным REST HTTP трафиком команда <code>nginx -s reload</code> выполняется незаметно: мастер-процесс запускает новые воркеры с обновлённым конфигом, а старые воркеры закрываются сразу после завершения текущих коротких HTTP-запросов (обычно за 50–100 миллисекунд).
+      </p>
+
+      <h2>В чём проблема с постоянными WebSocket туннелями?</h2>
+      <p>
+        WebSocket сессии (включая стриминговые шлюзы, телеком-прокси и чат-протоколы) удерживают постоянное TCP соединение часами или сутками. Если не настроить таймауты завершения воркеров, при каждом обновлении сертификатов Let's Encrypt или изменении конфигурации старые воркер-процессы Nginx накапливаются в памяти десятками, либо внезапно обрывают тысячи активных пользователей.
+      </p>
+
+      <div class="callout-box">
+        <strong>Симптом зависших процессов:</strong> Команда <code>ps aux | grep nginx</code> начинает показывать множество процессов в статусе <code>nginx: worker process is shutting down</code>, каждый из которых продолжает потреблять память и дескрипторы сокетов.
+      </div>
+
+      <h2>Конфигурация плавного завершения (Graceful Shutdown)</h2>
+      <p>
+        Для управления временем жизни старых воркеров в глобальную секцию <code>nginx.conf</code> добавляется директива <code>worker_shutdown_timeout</code>:
+      </p>
+
+      <pre><code># /etc/nginx/nginx.conf
+
+worker_processes auto;
+worker_rlimit_nofile 131072;
+
+# Таймаут на закрытие старых воркеров (например, 240 секунд)
+worker_shutdown_timeout 240s;
+
+events {
+    worker_connections 65535;
+    multi_accept on;
+    use epoll;
+}
+
+http {
+    # Корректная обработка заголовков апгрейда сокетов
+    map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+    }
+}</code></pre>
+
+      <h2>Как это работает на практике</h2>
+      <p>
+        Когда мастер-процесс получает сигнал <code>SIGHUP</code> (через <code>systemctl reload nginx</code>):
+      </p>
+      <ol>
+        <li>Мастер мгновенно порождает новые воркеры, которые подхватывают новые подключения.</li>
+        <li>Старые воркеры перестают слушать порт 443, но продолжают обслуживать существующие WebSocket-сессии.</li>
+        <li>По истечении <code>worker_shutdown_timeout</code> воркер корректно отправляет клиентам фрейм закрытия (Close Frame 1001 Going Away) и завершает работу.</li>
+      </ol>
+
+      <p>
+        Клиентские приложения (Incy, Happ, браузерные клиенты) получают стандартный статус перезапуска и автоматически переподключаются к новым воркерам за считанные миллисекунды.
+      </p>
+    </article>
+
+    <div style="margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
+      <a href="/#articles" class="btn btn-secondary">← Вернуться к остальным статьям</a>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container footer-inner">
+      <div>© 2026 Alexei Mizanov. Лаборатория системной архитектуры.</div>
+      <div class="footer-nav">
+        <a href="/">Главная</a>
+        <a href="/robots.txt">robots.txt</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/script.js"></script>
+</body>
+</html>
