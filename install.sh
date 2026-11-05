@@ -97,8 +97,20 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip docker.io
 
-# Enable Docker
+# Enable Docker with log rotation limits (prevent disk saturation)
+mkdir -p /etc/docker
+cat << 'EOF' > /etc/docker/daemon.json
+{
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  }
+}
+EOF
+systemctl daemon-reload >/dev/null 2>&1 || true
 systemctl enable --now docker
+systemctl reload docker 2>/dev/null || systemctl restart docker 2>/dev/null || true
 
 # 5. Enable BBR
 info "Enabling TCP BBR..."
@@ -113,7 +125,31 @@ info "Issuing SSL certificates with Let's Encrypt..."
 mkdir -p /etc/nginx
 systemctl stop nginx >/dev/null 2>&1 || true
 
-certbot certonly --standalone --preferred-challenges http --agree-tos     --email "$ACME_EMAIL" -d "$MAIN_DOMAIN" -d "$TG_DOMAIN"     --no-eff-email --non-interactive --keep-until-expiring
+certbot certonly --standalone --preferred-challenges http --agree-tos \
+    --email "$ACME_EMAIL" -d "$MAIN_DOMAIN" -d "$TG_DOMAIN" \
+    --no-eff-email --non-interactive --keep-until-expiring
+
+# Configure zero-downtime renewal via webroot and automatic Nginx reload hook
+mkdir -p /var/www/site/.well-known/acme-challenge
+mkdir -p /etc/letsencrypt/renewal-hooks/deploy
+cat << 'EOF' > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+#!/bin/bash
+systemctl reload nginx
+EOF
+chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+
+RENEWAL_CONF="/etc/letsencrypt/renewal/${MAIN_DOMAIN}.conf"
+if [ -f "$RENEWAL_CONF" ]; then
+    sed -i 's/^authenticator = standalone/authenticator = webroot/' "$RENEWAL_CONF"
+    if ! grep -q "webroot_path" "$RENEWAL_CONF"; then
+        sed -i "/\[renewalparams\]/a webroot_path = /var/www/site," "$RENEWAL_CONF"
+        cat << EOF >> "$RENEWAL_CONF"
+[[webroot_map]]
+${MAIN_DOMAIN} = /var/www/site
+${TG_DOMAIN} = /var/www/site
+EOF
+    fi
+fi
 
 ok "SSL certificates obtained successfully."
 
@@ -226,12 +262,19 @@ TROJAN_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws
 echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_NAME}.txt"
 chmod 644 "$WWW_DIR/${FIRST_USER_NAME}.txt"
 
-# 13. Multi-Layer Security Hardening
+# 13. Multi-Layer Security Hardening & Automated Backups
 info "Applying multi-layer security hardening (Firewall, Fail2ban, SSH, Kernel)..."
 if [ -f "$SCRIPT_DIR/scripts/setup-security.sh" ]; then
     bash "$SCRIPT_DIR/scripts/setup-security.sh"
 elif [ -f "$SCRIPT_DIR/scripts/setup-firewall.sh" ]; then
     bash "$SCRIPT_DIR/scripts/setup-firewall.sh" >/dev/null 2>&1
+fi
+
+info "Configuring automated daily backup..."
+if [ -f "$SCRIPT_DIR/scripts/backup.sh" ]; then
+    cp "$SCRIPT_DIR/scripts/backup.sh" /usr/local/bin/backup-vps
+    chmod +x /usr/local/bin/backup-vps
+    (crontab -l 2>/dev/null | grep -v 'backup-vps' || true; echo "0 3 * * * /usr/local/bin/backup-vps >/dev/null 2>&1") | crontab -
 fi
 
 # 14. Output Final Summary
@@ -255,11 +298,13 @@ echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_U
 echo "   • Прямой VLESS: ${VLESS_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"
-echo "   • SSL Сертификаты: Автоматическое продление через Certbot"
+echo "   • SSL Сертификаты: Автоматическое продление через Certbot (Webroot, 0ms downtime)"
 echo "   • Стелс-режим Nginx: Сброс соединений по IP без ответа (HTTP 444, Anti-Scanner)"
 echo "   • Защита от брутфорса: Fail2ban + UFW (блокировка на 24ч при 5 попытках)"
 echo "   • SSH Защита: Вход по паролю ОТКЛЮЧЕН (только ed25519/RSA ключи)"
 echo "   • Ядро Linux: SYN cookies, защита от IP-спуфинга, TCP BBR"
 echo "   • Фаервол: UFW активен (только порты 22, 80, 443; все сервисы на 127.0.0.1)"
 echo "   • Автообновления: unattended-upgrades для патчей безопасности"
+echo "   • Ротация логов Docker: Ограничение до 30MB на контейнер"
+echo "   • Резервное копирование: Автоматический снапшот конфигураций ежедневно в 03:00"
 echo ""

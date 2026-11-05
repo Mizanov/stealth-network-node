@@ -91,7 +91,15 @@ http {
         listen       80;
         listen       [::]:80;
         server_name  {{DOMAIN}} {{TG_DOMAIN}};
-        return       301 https://$host$request_uri;
+
+        # Zero-downtime ACME HTTP-01 challenge validation for Let's Encrypt
+        location /.well-known/acme-challenge/ {
+            root /var/www/site;
+        }
+
+        location / {
+            return 301 https://$host$request_uri;
+        }
     }
 
     # Disable access via IP or wrong domain name (Stealth 444)

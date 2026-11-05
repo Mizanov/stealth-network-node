@@ -247,6 +247,12 @@ sysctl net.ipv4.tcp_congestion_control net.ipv4.tcp_syncookies net.ipv4.conf.all
 # Быстрый аудит и наложение всех слоёв безопасности
 bash scripts/setup-security.sh
 
+# Создание резервной копии конфигураций и сертификатов
+backup-vps
+
+# Тест автопродления SSL-сертификатов (Zero-Downtime Webroot)
+certbot renew --dry-run
+
 # Перезапуск сервисов при необходимости
 systemctl restart sing-box nginx incy-bot fail2ban
 docker restart tgweb-proxy
