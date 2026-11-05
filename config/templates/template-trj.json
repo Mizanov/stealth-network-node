@@ -1,0 +1,553 @@
+{
+  "log": {
+    "level": "fatal",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "local",
+        "tag": "dns-local"
+      },
+      {
+        "type": "tls",
+        "tag": "dns-remote",
+        "server": "1.1.1.1",
+        "tls": {
+          "enabled": true,
+          "server_name": "one.one.one.one"
+        },
+        "detour": "proxy"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": [
+          "category-ads-all"
+        ],
+        "action": "predefined",
+        "rcode": "NOERROR"
+      },
+      {
+        "package_name": [
+          "ru.oneme.app",
+          "com.vkontakte.android",
+          "ru.rostel"
+        ],
+        "server": "dns-local"
+      },
+      {
+        "process_name": [
+          "max.exe",
+          "max-service.exe",
+          "crashpad_handler.exe"
+        ],
+        "server": "dns-local"
+      },
+      {
+        "rule_set": [
+          "torrent-clients"
+        ],
+        "server": "dns-local"
+      },
+      {
+        "domain_suffix": [
+          "kemono.su",
+          "jut.su",
+          "kara.su",
+          "smods.ru",
+          "theins.ru",
+          "tvrain.ru",
+          "echo.msk.ru",
+          "the-village.ru",
+          "snob.ru",
+          "novayagazeta.ru",
+          "moscowtimes.ru",
+          "lesswrong.ru"
+        ],
+        "domain_keyword": [
+          "habr",
+          "animego",
+          "yummyanime",
+          "yummy-anime",
+          "animeportal",
+          "anime-portal",
+          "animedub",
+          "anidub",
+          "animelib",
+          "ikianime",
+          "anilibria"
+        ],
+        "rule_set": [
+          "telegram",
+          "google"
+        ],
+        "server": "dns-remote"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".ru.com",
+          ".ru.net",
+          "{{DOMAIN}}",
+          "kudago.com",
+          "kinescope.io",
+          "redheadsound.studio",
+          "plplayer.online",
+          "lomont.site",
+          "remanga.org",
+          "shopstory.live"
+        ],
+        "domain_keyword": [
+          "xn--",
+          "miradres",
+          "premier",
+          "shutterstock",
+          "2gis",
+          "diginetica",
+          "kinescopecdn",
+          "researchgate",
+          "nextcloud",
+          "kaspersky",
+          "stepik",
+          "likee",
+          "yappy",
+          "pikabu",
+          "okko",
+          "wink",
+          "kion",
+          "wildberries",
+          "aliexpress"
+        ],
+        "rule_set": [
+          "category-gov-ru",
+          "yandex",
+          "vk",
+          "mailru",
+          "ozon",
+          "zoom",
+          "reddit",
+          "twitch",
+          "tumblr",
+          "pinterest",
+          "duckduckgo",
+          "yahoo",
+          "oracle",
+          "blender",
+          "drweb",
+          "debian",
+          "canonical",
+          "python",
+          "doi",
+          "springer",
+          "elsevier",
+          "sciencedirect",
+          "sci-hub",
+          "duolingo"
+        ],
+        "server": "dns-local"
+      },
+      {
+        "inbound": [
+          "tun-in"
+        ],
+        "server": "dns-remote"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "tun",
+      "tag": "tun-in",
+      "interface_name": "tun0",
+      "stack": "system",
+      "address": [
+        "172.19.0.1/28"
+      ],
+      "auto_route": true,
+      "strict_route": true
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "trojan",
+      "tag": "proxy",
+      "server": "{{DOMAIN}}",
+      "server_port": 443,
+      "password": "${trjpass}",
+      "tls": {
+        "enabled": true,
+        "server_name": "{{DOMAIN}}"
+      },
+      "transport": {
+        "type": "ws",
+        "path": "/{{TROJAN_PATH}}"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true
+      }
+    }
+  ],
+  "http_clients": [
+    {
+      "tag": "http-direct"
+    },
+    {
+      "tag": "http-proxy",
+      "detour": "proxy"
+    }
+  ],
+  "route": {
+    "auto_detect_interface": true,
+    "default_http_client": "http-direct",
+    "default_domain_resolver": {
+      "server": "dns-local",
+      "strategy": "prefer_ipv4"
+    },
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "ip_is_private": true,
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "category-ads-all"
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+      {
+        "package_name": [
+          "ru.oneme.app",
+          "com.vkontakte.android",
+          "ru.rostel"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "process_name": [
+          "max.exe",
+          "max-service.exe",
+          "crashpad_handler.exe"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "rule_set": [
+          "torrent-clients"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_suffix": [
+          "kemono.su",
+          "jut.su",
+          "kara.su",
+          "smods.ru",
+          "theins.ru",
+          "tvrain.ru",
+          "echo.msk.ru",
+          "the-village.ru",
+          "snob.ru",
+          "novayagazeta.ru",
+          "moscowtimes.ru",
+          "lesswrong.ru"
+        ],
+        "domain_keyword": [
+          "habr",
+          "animego",
+          "yummyanime",
+          "yummy-anime",
+          "animeportal",
+          "anime-portal",
+          "animedub",
+          "anidub",
+          "animelib",
+          "ikianime",
+          "anilibria"
+        ],
+        "rule_set": [
+          "telegram",
+          "google"
+        ],
+        "outbound": "proxy"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".ru.com",
+          ".ru.net",
+          "{{DOMAIN}}",
+          "kudago.com",
+          "kinescope.io",
+          "redheadsound.studio",
+          "plplayer.online",
+          "lomont.site",
+          "remanga.org",
+          "shopstory.live"
+        ],
+        "domain_keyword": [
+          "xn--",
+          "miradres",
+          "premier",
+          "shutterstock",
+          "2gis",
+          "diginetica",
+          "kinescopecdn",
+          "researchgate",
+          "nextcloud",
+          "kaspersky",
+          "stepik",
+          "likee",
+          "yappy",
+          "pikabu",
+          "okko",
+          "wink",
+          "kion",
+          "wildberries",
+          "aliexpress"
+        ],
+        "ip_cidr": [
+          "{{SERVER_IP}}"
+        ],
+        "rule_set": [
+          "category-gov-ru",
+          "yandex",
+          "vk",
+          "mailru",
+          "ozon",
+          "zoom",
+          "reddit",
+          "twitch",
+          "tumblr",
+          "pinterest",
+          "duckduckgo",
+          "yahoo",
+          "oracle",
+          "blender",
+          "drweb",
+          "debian",
+          "canonical",
+          "python",
+          "doi",
+          "springer",
+          "elsevier",
+          "sciencedirect",
+          "sci-hub",
+          "duolingo"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "action": "resolve"
+      },
+      {
+        "rule_set": [
+          "geoip-ru"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "inbound": [
+          "tun-in"
+        ],
+        "outbound": "proxy"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "torrent-clients",
+        "type": "remote",
+        "format": "source",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/torrent-clients.json"
+      },
+      {
+        "tag": "geoip-ru",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geoip-ru.srs"
+      },
+      {
+        "tag": "category-gov-ru",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-category-gov-ru.srs"
+      },
+      {
+        "tag": "yandex",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-yandex.srs"
+      },
+      {
+        "tag": "google",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-google.srs"
+      },
+      {
+        "tag": "telegram",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-telegram.srs"
+      },
+      {
+        "tag": "vk",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-vk.srs"
+      },
+      {
+        "tag": "mailru",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-mailru.srs"
+      },
+      {
+        "tag": "ozon",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-ozon.srs"
+      },
+      {
+        "tag": "zoom",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-zoom.srs"
+      },
+      {
+        "tag": "reddit",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-reddit.srs"
+      },
+      {
+        "tag": "twitch",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-twitch.srs"
+      },
+      {
+        "tag": "tumblr",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-tumblr.srs"
+      },
+      {
+        "tag": "pinterest",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-pinterest.srs"
+      },
+      {
+        "tag": "duckduckgo",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-duckduckgo.srs"
+      },
+      {
+        "tag": "yahoo",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-yahoo.srs"
+      },
+      {
+        "tag": "oracle",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-oracle.srs"
+      },
+      {
+        "tag": "blender",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-blender.srs"
+      },
+      {
+        "tag": "drweb",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-drweb.srs"
+      },
+      {
+        "tag": "debian",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-debian.srs"
+      },
+      {
+        "tag": "canonical",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-canonical.srs"
+      },
+      {
+        "tag": "python",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-python.srs"
+      },
+      {
+        "tag": "doi",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-doi.srs"
+      },
+      {
+        "tag": "springer",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-springer.srs"
+      },
+      {
+        "tag": "elsevier",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-elsevier.srs"
+      },
+      {
+        "tag": "sciencedirect",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-sciencedirect.srs"
+      },
+      {
+        "tag": "sci-hub",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-sci-hub.srs"
+      },
+      {
+        "tag": "duolingo",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-duolingo.srs"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "remote",
+        "format": "binary",
+        "url": "https://{{DOMAIN}}/{{RULESET_PATH}}/geosite-category-ads-all.srs"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+}

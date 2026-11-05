@@ -1,0 +1,16 @@
+[Unit]
+Description=Incy Sing-Box Telegram Management Bot
+After=network.target sing-box.service nginx.service docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/incy-bot
+ExecStart=/opt/incy-bot/venv/bin/python3 /opt/incy-bot/bot.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/incy-bot/.env
+
+[Install]
+WantedBy=multi-user.target

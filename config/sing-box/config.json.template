@@ -1,0 +1,162 @@
+{
+  "log": {
+    "level": "fatal",
+    "output": "box.log",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "type": "local",
+        "tag": "dns-main"
+      }
+    ],
+    "rules": [
+      {
+        "rule_set": [
+          "category-ads-all"
+        ],
+        "action": "predefined",
+        "rcode": "NOERROR"
+      }
+    ]
+  },
+  "inbounds": [
+    {
+      "type": "trojan",
+      "tag": "trojan-in",
+      "listen": "127.0.0.1",
+      "listen_port": 10443,
+      "users": [
+        {
+          "name": "user_cbae62",
+          "password": "74bf972f42b94f5d"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/{{TROJAN_PATH}}"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-in",
+      "listen": "127.0.0.1",
+      "listen_port": 11443,
+      "users": [
+        {
+          "name": "user_cbae62",
+          "uuid": "43650570-5288-40a0-915e-e7bd9f8f5108"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/{{VLESS_PATH}}"
+      },
+      "multiplex": {
+        "enabled": true,
+        "padding": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "socks",
+      "tag": "warp",
+      "server": "127.0.0.1",
+      "server_port": 40000
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "action": "sniff"
+      },
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "rule_set": [
+          "category-ads-all"
+        ],
+        "action": "reject",
+        "method": "drop"
+      },
+      {
+        "domain_suffix": [
+          ".ru",
+          ".su",
+          ".ru.com",
+          ".ru.net",
+          "ntc.party",
+          "canva.com"
+        ],
+        "domain_keyword": [
+          "xn--",
+          "habr",
+          "rutracker"
+        ],
+        "rule_set": [
+          "geoip-ru",
+          "category-gov-ru",
+          "openai",
+          "anthropic",
+          "xai"
+        ],
+        "outbound": "warp"
+      }
+    ],
+    "rule_set": [
+      {
+        "tag": "geoip-ru",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geoip-ru.srs"
+      },
+      {
+        "tag": "category-gov-ru",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geosite-category-gov-ru.srs"
+      },
+      {
+        "tag": "category-ads-all",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geosite-category-ads-all.srs"
+      },
+      {
+        "tag": "openai",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geosite-openai.srs"
+      },
+      {
+        "tag": "anthropic",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geosite-anthropic.srs"
+      },
+      {
+        "tag": "xai",
+        "type": "local",
+        "format": "binary",
+        "path": "/var/www/{{RULESET_PATH}}/geosite-xai.srs"
+      }
+    ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
+  }
+}

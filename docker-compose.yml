@@ -1,0 +1,25 @@
+services:
+  tgweb-proxy:
+    image: grayhoax/telegram-web-proxy:latest
+    container_name: tgweb-proxy
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      - TPROXY_HOSTNAME=${TG_DOMAIN}
+      - TLS_MODE=off
+      - TRUSTED_PROXIES=private_ranges
+    volumes:
+      - tgweb-data:/data
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - KILL
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  tgweb-data:
