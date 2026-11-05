@@ -124,11 +124,11 @@ http {
             deny all;
         }
 
-        # Main location
+        # Main location (Decoy Portfolio Website)
         location / {
-            # auth_basic "Restricted Content";
-            # auth_basic_user_file /etc/nginx/.htpasswd;
-            return 301 https://duckduckgo.com$request_uri;
+            root /var/www/site;
+            index index.html;
+            try_files $uri $uri/ /index.html;
         }
 
         # Subscription

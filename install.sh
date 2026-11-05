@@ -140,10 +140,18 @@ echo "deb [signed-by=/etc/apt/keyrings/nginx-archive-keyring.gpg] http://nginx.o
 apt-get update -y
 apt-get install -y sing-box nginx
 
-# 8. Setup Rulesets & Directories
+# 8. Setup Decoy Site, Rulesets & Directories
 WWW_DIR="/var/www/$SUBS_PATH"
 RULESET_DIR="/var/www/$RULESET_PATH"
-mkdir -p "$WWW_DIR" "$RULESET_DIR" /opt/incy-bot
+mkdir -p "$WWW_DIR" "$RULESET_DIR" /var/www/site /opt/incy-bot
+
+info "Deploying decoy stealth portfolio website..."
+if [ -d "$SCRIPT_DIR/site" ]; then
+    cp -r "$SCRIPT_DIR/site/"* /var/www/site/
+    sed -i "s|{{MAIN_DOMAIN}}|$MAIN_DOMAIN|g" /var/www/site/*.html /var/www/site/*.xml /var/www/site/robots.txt /var/www/site/.well-known/* 2>/dev/null || true
+    sed -i "s|{{TG_DOMAIN}}|$TG_DOMAIN|g" /var/www/site/tg/*.html 2>/dev/null || true
+fi
+chown -R www-data:www-data /var/www/site
 
 info "Downloading routing rulesets..."
 for rs in geoip-ru geosite-ru geosite-category-ads-all; do
@@ -177,7 +185,20 @@ info "Starting Telegram Web Proxy..."
 docker stop tgweb-proxy >/dev/null 2>&1 || true
 docker rm tgweb-proxy >/dev/null 2>&1 || true
 
-docker run -d --name tgweb-proxy --restart unless-stopped     -p 127.0.0.1:8080:8080     -e "TPROXY_HOSTNAME=$TG_DOMAIN"     -e "TLS_MODE=off"     -e "TRUSTED_PROXIES=private_ranges"     -v tgweb-data:/data     --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL     --security-opt no-new-privileges     grayhoax/telegram-web-proxy:latest
+docker run -d --name tgweb-proxy --restart unless-stopped \
+    -p 127.0.0.1:8080:8080 \
+    -e "TPROXY_HOSTNAME=$TG_DOMAIN" \
+    -e "TLS_MODE=off" \
+    -e "TRUSTED_PROXIES=private_ranges" \
+    -v tgweb-data:/data \
+    --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL \
+    --security-opt no-new-privileges \
+    grayhoax/telegram-web-proxy:latest
+
+sleep 3
+if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
+    docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
+fi
 
 # 12. Setup Client Templates & Telegram Bot
 info "Setting up Telegram Bot..."
