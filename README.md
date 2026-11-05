@@ -1,6 +1,8 @@
 <div align="center">
 
-# 🚀 Telegram Web Proxy & Sing-Box Incy Suite
+# 🚀 tgproxy-vpsvless-tgbot
+
+### Telegram Web Proxy & Sing-Box Incy Suite
 
 Готовое решение «под ключ» для развёртывания на чистом VPS: **Secret-Sing-Box** (VLESS / Trojan поверх WebSocket с TLS), официальный **Telegram Web Proxy** (`tproxy-server`) и персональный **Telegram-бот** для автоматической генерации ключей и подписок под клиент **Incy**.
 
@@ -87,8 +89,8 @@ ssh root@YOUR_SERVER_IP
 
 ### 2. Клонируйте репозиторий
 ```bash
-git clone https://github.com/Mizanov/telegram-web-proxy.git /opt/telegram-web-proxy
-cd /opt/telegram-web-proxy
+git clone https://github.com/Mizanov/tgproxy-vpsvless-tgbot.git /opt/tgproxy-vpsvless-tgbot
+cd /opt/tgproxy-vpsvless-tgbot
 ```
 
 ### 3. Запустите автоматический установщик
@@ -170,7 +172,7 @@ docker restart tgweb-proxy
 Если вам потребуется полностью удалить все компоненты с сервера:
 
 ```bash
-cd /opt/telegram-web-proxy
+cd /opt/tgproxy-vpsvless-tgbot
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
