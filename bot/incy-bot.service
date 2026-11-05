@@ -1,5 +1,5 @@
 [Unit]
-Description=Incy Sing-Box Telegram Management Bot
+Description=Sing-Box Universal Telegram Management Bot
 After=network.target sing-box.service nginx.service docker.service
 
 [Service]

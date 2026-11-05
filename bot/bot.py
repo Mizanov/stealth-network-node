@@ -64,7 +64,7 @@ def is_admin(user_id: int) -> bool:
 
 def get_keyboard():
     keyboard = [
-        ["➕ Создать ключ Incy", "👥 Список ключей"],
+        ["➕ Создать ключ", "👥 Список ключей"],
         ["🌐 Telegram Web Proxy", "📊 Статус сервера"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
@@ -247,9 +247,9 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
-        "Панель управления **Sing-Box Incy** и **Telegram Web Proxy**.\n\n"
+        "Панель управления **Sing-Box VLESS** и **Telegram Web Proxy**.\n\n"
         "⚡ **Доступные команды:**\n"
-        "• `/new <имя>` — сгенерировать ключ для Incy\n"
+        "• `/new <имя>` — сгенерировать ключ и универсальную подписку\n"
         "• `/list` — список всех пользователей и ключей\n"
         "• `/del <имя>` — удалить пользователя\n"
         "• `/proxy` — ссылки на Telegram Web Proxy\n"
@@ -288,28 +288,26 @@ async def process_new_user(update: Update, username: str):
     incy_deeplink = res["incy_deeplink"]
 
     caption = (
-        f"✅ **Ключ для Incy успешно создан!**\n\n"
+        f"✅ **Ключ успешно создан!**\n\n"
         f"👤 **Пользователь:** `{username}`\n"
         f"🔑 **UUID:** `{res['uuid']}`\n\n"
-        f"📋 **1. Ссылка на ПОДПИСКУ (Incy / Happ / V2Ray):**\n"
+        f"📋 **1. Ссылка на ПОДПИСКУ (Incy / Happ / V2Ray / Sing-Box):**\n"
         f"`{incy_sub_url}`\n\n"
         f"⚡ **2. Прямая VLESS ссылка (нажмите для копирования):**\n"
         f"`{vless_link}`\n\n"
-        f"📲 **3. Диплинк для добавления подписки в Incy в 1 клик:**\n"
-        f"`{incy_deeplink}`\n\n"
-        f"📦 **4. Конфиг Sing-Box JSON:**\n"
+        f"📦 **3. Конфиг Sing-Box JSON:**\n"
         f"`{singbox_json_url}`\n\n"
-        f"💡 *В приложении Incy нажмите «+» ➔ «Сканировать QR-код» и наведите камеру на QR ниже, либо вставьте ссылку подписки!*"
+        f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код в приложении (Incy, Happ, v2rayNG, Sing-Box)!*"
     )
 
     keyboard = [
-        [InlineKeyboardButton("🌐 Открыть подписку Incy", url=incy_sub_url)],
+        [InlineKeyboardButton("🌐 Открыть подписку", url=incy_sub_url)],
         [InlineKeyboardButton("📦 Sing-Box JSON", url=singbox_json_url)],
         [InlineKeyboardButton("🗑 Удалить этот ключ", callback_data=f"del_{username}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # QR encodes direct VLESS URI for 1-tap instant camera import in Incy
+    # QR encodes direct VLESS URI for 1-tap instant camera import
     qr_img = generate_qr(vless_link)
 
     await update.message.reply_photo(
@@ -440,15 +438,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Не удалось удалить пользователя {username}.")
     elif data.startswith("info_"):
         username = data[5:]
-        incy_sub = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
+        sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
         sb_json = f"https://{DOMAIN}/{SUBS_PATH}/{username}-VLESS-CLIENT.json"
         msg = (
             f"👤 **Пользователь:** `{username}`\n\n"
-            f"📋 **Подписка Incy:**\n`{incy_sub}`\n\n"
+            f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
             f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
         )
         keyboard = [
-            [InlineKeyboardButton("🌐 Открыть подписку", url=incy_sub)],
+            [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
             [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
         ]
         await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -460,7 +458,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     text = update.message.text.strip()
-    if text == "➕ Создать ключ Incy":
+    if text in ("➕ Создать ключ", "➕ Создать ключ Incy"):
         uname = f"user_{uuid.uuid4().hex[:6]}"
         await process_new_user(update, uname)
     elif text == "👥 Список ключей":
@@ -474,7 +472,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await process_new_user(update, text)
         else:
             await update.message.reply_text(
-                "ℹ️ Чтобы создать ключ, введите `/new <имя>` или нажмите кнопку «➕ Создать ключ Incy».",
+                "ℹ️ Чтобы создать ключ, введите `/new <имя>` или нажмите кнопку «➕ Создать ключ».",
                 reply_markup=get_keyboard()
             )
 

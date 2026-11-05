@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Telegram Web Proxy & Sing-Box Incy Suite - Automated Installer
+# Telegram Web Proxy & Sing-Box Universal Suite - Automated Installer
 # Target OS: Ubuntu 22.04/24.04, Debian 12 (x86_64)
 # ==============================================================================
 
@@ -29,7 +29,7 @@ fi
 
 echo -e "${CYAN}${BOLD}"
 echo "╔═════════════════════════════════════════════════════════════════════╗"
-echo "║          Telegram Web Proxy & Sing-Box Incy Suite Installer         ║"
+echo "║       Telegram Web Proxy & Sing-Box Universal Suite Installer       ║"
 echo "╚═════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -224,10 +224,10 @@ echo ""
 echo -e "🌐 ${BOLD}Telegram Web Proxy (tproxy-server):${NC}"
 echo "   Ссылка для подключения: $TG_PROXY_LINK"
 echo ""
-echo -e "📦 ${BOLD}Клиент Incy (первый ключ: ${FIRST_USER_NAME}):${NC}"
-echo "   • Подписка: https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
-echo "   • Диплинк:  incy://add/https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
-echo "   • VLESS:    ${VLESS_LINK}"
+echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / SFM):${NC}"
+echo "   • Пользователь: ${FIRST_USER_NAME}"
+echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
+echo "   • Прямой VLESS: ${VLESS_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности:${NC}"
 echo "   • SSL Сертификаты: Автоматическое продление через Certbot"
