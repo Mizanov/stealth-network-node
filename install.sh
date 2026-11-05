@@ -95,7 +95,7 @@ fi
 info "Updating repositories and installing base packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl wget jq git certbot ufw openssl sed python3-venv python3-pip docker.io
+apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip docker.io
 
 # Enable Docker
 systemctl enable --now docker
@@ -226,9 +226,13 @@ TROJAN_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws
 echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_NAME}.txt"
 chmod 644 "$WWW_DIR/${FIRST_USER_NAME}.txt"
 
-# 13. Firewall Hardening
-info "Hardening firewall (UFW)..."
-bash "$SCRIPT_DIR/scripts/setup-firewall.sh" >/dev/null 2>&1
+# 13. Multi-Layer Security Hardening
+info "Applying multi-layer security hardening (Firewall, Fail2ban, SSH, Kernel)..."
+if [ -f "$SCRIPT_DIR/scripts/setup-security.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/setup-security.sh"
+elif [ -f "$SCRIPT_DIR/scripts/setup-firewall.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/setup-firewall.sh" >/dev/null 2>&1
+fi
 
 # 14. Output Final Summary
 sleep 3
@@ -250,8 +254,12 @@ echo "   • Пользователь: ${FIRST_USER_NAME}"
 echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
 echo "   • Прямой VLESS: ${VLESS_LINK}"
 echo ""
-echo -e "🔒 ${BOLD}Статус безопасности:${NC}"
+echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"
 echo "   • SSL Сертификаты: Автоматическое продление через Certbot"
-echo "   • Фаервол: UFW активен (только порты 22, 80, 443)"
-echo "   • Все внутренние порты изолированы на 127.0.0.1"
+echo "   • Стелс-режим Nginx: Сброс соединений по IP без ответа (HTTP 444, Anti-Scanner)"
+echo "   • Защита от брутфорса: Fail2ban + UFW (блокировка на 24ч при 5 попытках)"
+echo "   • SSH Защита: Вход по паролю ОТКЛЮЧЕН (только ed25519/RSA ключи)"
+echo "   • Ядро Linux: SYN cookies, защита от IP-спуфинга, TCP BBR"
+echo "   • Фаервол: UFW активен (только порты 22, 80, 443; все сервисы на 127.0.0.1)"
+echo "   • Автообновления: unattended-upgrades для патчей безопасности"
 echo ""

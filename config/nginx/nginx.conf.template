@@ -79,7 +79,22 @@ http {
         default "$proxy_forwarded_elem";
     }
 
-    # Disable access via IP or wrong domain name
+    # Port 80: Drop raw IP scanners, redirect domains to HTTPS
+    server {
+        listen       80 default_server;
+        listen       [::]:80 default_server;
+        server_name  _;
+        return       444;
+    }
+
+    server {
+        listen       80;
+        listen       [::]:80;
+        server_name  {{DOMAIN}} {{TG_DOMAIN}};
+        return       301 https://$host$request_uri;
+    }
+
+    # Disable access via IP or wrong domain name (Stealth 444)
     server {
         listen                443 ssl default_server;
         listen                [::]:443 ssl default_server;
@@ -90,7 +105,7 @@ http {
         ssl_certificate_key   /etc/letsencrypt/live/{{DOMAIN}}/privkey.pem;
         ssl_dhparam           /etc/nginx/dhparam.pem;
 
-        return                403;
+        return                444;
     }
 
     # Site
