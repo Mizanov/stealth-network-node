@@ -3,333 +3,338 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Alexei Mizanov — Distributed Infrastructure & Cloud Architecture</title>
-  <meta name="description" content="Personal portfolio and engineering lab of Alexei Mizanov. High-availability distributed backends, eBPF network observability, asynchronous pipelines, and cloud-native infrastructure.">
-  <meta name="keywords" content="Systems Architecture, Cloud Infrastructure, HighLoad, Linux, Go, Python, Nginx, Docker, Kubernetes, BBR, eBPF">
+  <title>Alexei Mizanov — Distributed Systems & Cloud Architecture</title>
+  <meta name="description" content="Personal lab and engineering practice of Alexei Mizanov. Asynchronous backends, TLS termination, eBPF telemetry, and resilient Linux infrastructure.">
+  <meta name="keywords" content="Systems Architecture, Cloud Engineering, Linux, Nginx, Go, Python, eBPF, TCP BBR, HighLoad">
   <meta name="author" content="Alexei Mizanov">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  
-  <!-- OpenGraph / Social -->
+
+  <!-- OpenGraph -->
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Alexei Mizanov — Distributed Systems & Cloud Architecture">
-  <meta property="og:description" content="Designing resilient low-latency networks, asynchronous microservices, and high-load infrastructure.">
+  <meta property="og:title" content="Alexei Mizanov — Systems Architecture">
+  <meta property="og:description" content="Designing low-latency distributed networks and fault-tolerant cloud backends.">
   <meta property="og:url" content="https://{{MAIN_DOMAIN}}/">
-  <meta property="og:site_name" content="Mizanov Systems Lab">
-  
+
+  <!-- Fonts: Manrope & Geist Mono (Strict B1 rule: Never Inter or Roboto) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div class="bg-glow"></div>
 
-  <!-- Header -->
+  <!-- Floating Navigation Bar (B7) -->
   <header>
-    <div class="container">
-      <nav>
-        <a href="/" class="logo">
-          <span class="logo-badge">AM</span>
-          <span>mizanov<span class="gradient-text">.dev</span></span>
-        </a>
+    <nav class="floating-bar">
+      <a href="/" class="brand">
+        <span class="brand-symbol">AM</span>
+        <span>mizanov<span style="color: var(--text-secondary)">.dev</span></span>
+      </a>
 
-        <ul class="nav-links">
-          <li><a href="#architecture">Архитектура</a></li>
-          <li><a href="#projects">Проекты</a></li>
-          <li><a href="#stack">Стек</a></li>
-          <li><a href="#articles">Заметки</a></li>
-          <li><a href="#contact">Контакты</a></li>
-        </ul>
+      <ul class="nav-links">
+        <li><a href="#solutions">Решения</a></li>
+        <li><a href="#projects">Проекты</a></li>
+        <li><a href="#stack">Стек</a></li>
+        <li><a href="#articles">Заметки</a></li>
+        <li><a href="#contact">Контакты</a></li>
+      </ul>
 
-        <div class="nav-actions">
-          <div class="status-indicator">
-            <span class="status-dot"></span>
-            <span>Cluster: Frankfurt</span>
-          </div>
-          <button id="themeToggle" class="theme-toggle" aria-label="Toggle Theme"></button>
+      <div class="nav-right">
+        <div class="cluster-pill">
+          <span class="pulse-dot"></span>
+          <span>Frankfurt 01</span>
         </div>
-      </nav>
-    </div>
+        <button id="themeToggle" class="theme-toggle-btn" aria-label="Сменить тему"></button>
+      </div>
+    </nav>
   </header>
 
-  <!-- Hero Section -->
   <main>
-    <section class="hero">
+    <!-- Hero Section (B5) -->
+    <section class="hero-section">
       <div class="container">
-        <div class="hero-pill">
-          ⚡ High-Availability & Low-Latency Systems Architecture
+        <div class="hero-tag">
+          Инженерная лаборатория распределённых систем
         </div>
-        <h1>
-          Проектирование отказоустойчивых <br>
-          <span class="gradient-text">распределённых систем</span> и сетей
+        <h1 class="hero-heading">
+          Проектирование надёжных сетевых архитектур и облачных сервисов
         </h1>
-        <p class="hero-desc">
-          Специализируюсь на асинхронных микросервисных архитектурах, высоконагруженных сетевых шлюзах с аппаратным ускорением шифрования, eBPF-телеметрии и оптимизации транспортных протоколов Linux ядра.
+        <p class="hero-subtitle">
+          Разрабатываю высокопроизводительные точки терминации TLS, асинхронные микросервисы на Go и Python, настраиваю низкоуровневые очереди сокетов Linux и алгоритмы TCP BBR.
         </p>
 
-        <div class="hero-btns">
+        <div class="hero-actions">
           <a href="#projects" class="btn btn-primary">Изучить кейсы</a>
           <a href="#contact" class="btn btn-secondary">Связаться</a>
           <a href="https://github.com/Mizanov" target="_blank" rel="noopener" class="btn btn-secondary">GitHub</a>
         </div>
 
-        <div class="metrics-grid">
-          <div class="metric-item">
-            <div class="metric-value">99.99%</div>
-            <div class="metric-label">Target Uptime SLA</div>
+        <!-- Metrics Strip -->
+        <div class="metrics-strip">
+          <div>
+            <div class="metric-num">99.98%</div>
+            <div class="metric-desc">Целевой аптайм сервисов</div>
           </div>
-          <div class="metric-item">
-            <div class="metric-value">&lt; 14 ms</div>
-            <div class="metric-label">Average Edge Latency</div>
+          <div>
+            <div class="metric-num">&lt; 12.4 ms</div>
+            <div class="metric-desc">Сетевая задержка на узлах</div>
           </div>
-          <div class="metric-item">
-            <div class="metric-value">120k+</div>
-            <div class="metric-label">Req / Sec Concurrency</div>
+          <div>
+            <div class="metric-num">140k+</div>
+            <div class="metric-desc">Одновременных сокетов</div>
           </div>
-          <div class="metric-item">
-            <div class="metric-value">Zero</div>
-            <div class="metric-label">Downtime Deployments</div>
+          <div>
+            <div class="metric-num">Zero</div>
+            <div class="metric-desc">Простоев при деплое</div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Architecture Disciplines -->
-    <section id="architecture">
+    <!-- B11. Mandatory Tagline Reveal Section -->
+    <section class="tagline-reveal">
       <div class="container">
-        <div class="section-head">
-          <div class="section-tag">Инженерная специализация</div>
-          <h2>Архитектурные направления</h2>
+        <div class="tagline-text">
+          Архитектурная надёжность закладывается на уровне сетевых очередей, изоляции процессов и аппаратного ускорения шифрования.
         </div>
+        <p class="tagline-sub">
+          Каждый компонент изолирован в собственном пространстве имён с защитой от сканирования и нулевыми утечками памяти.
+        </p>
+      </div>
+    </section>
 
-        <div class="cards-grid">
-          <div class="card">
-            <div class="card-icon">🌐</div>
-            <h3>Edge Routing & TLS 1.3</h3>
-            <p>Проектирование высокопроизводительных точек терминации TLS с поддержкой современного пула шифров, сессионных билетов, аппаратного ускорения AES-NI и интеллектуального Rate Limiting.</p>
-            <div class="card-tags">
-              <span class="tag">Nginx</span>
-              <span class="tag">TLS 1.3</span>
-              <span class="tag">Caddy</span>
-              <span class="tag">HSTS</span>
+    <!-- Architectural Bento Grid -->
+    <section id="solutions">
+      <div class="container">
+        <div class="section-label">Специализация</div>
+        <h2 class="heading-3 section-title">Ключевые направления разработки</h2>
+
+        <div class="bento-grid">
+          <div class="card-bento">
+            <div class="card-top">
+              <span class="card-badge">Маршрутизация & TLS</span>
+              <h3 class="card-title">Терминация трафика и Edge Gateways</h3>
+              <p class="card-desc">
+                Проектирование точек входа с поддержкой TLS 1.3, сессионных билетов, аппаратных инструкций AES-NI и изоляцией внутренних эндпоинтов от внешнего сканирования.
+              </p>
+            </div>
+            <div class="card-specs">
+              <span>Стек:</span>
+              <span class="spec-val">Nginx, TLS 1.3, Let's Encrypt</span>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-icon">⚡</div>
-            <h3>Low-Latency Transport & BBR</h3>
-            <p>Тонкая настройка сетевого стека Linux ядра. Применение алгоритмов контроля перегрузок TCP BBR, оптимизация очередей TCP/IP сокетов и борьба с деградацией каналов при потерях пакетов.</p>
-            <div class="card-tags">
-              <span class="tag">TCP BBR</span>
-              <span class="tag">Kernel sysctl</span>
-              <span class="tag">WebSocket</span>
-              <span class="tag">eBPF</span>
+          <div class="card-bento">
+            <div class="card-top">
+              <span class="card-badge">Транспортные протоколы</span>
+              <h3 class="card-title">Оптимизация сетевого стека Linux</h3>
+              <p class="card-desc">
+                Применение алгоритма контроля перегрузок TCP BBR для подавления буферблоата и стабилизации скорости передачи данных в нестабильных мобильных сетях.
+              </p>
+            </div>
+            <div class="card-specs">
+              <span>Механизм:</span>
+              <span class="spec-val">BBR Congestion Control, sysctl</span>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-icon">📦</div>
-            <h3>Контейнеризация и изоляция</h3>
-            <p>Построение безопасных контейнерных сред с изоляцией пространств имён (cgroups v2, seccomp), минималистичными rootless образами и декларативным оркестрированием сервисов.</p>
-            <div class="card-tags">
-              <span class="tag">Docker</span>
-              <span class="tag">systemd</span>
-              <span class="tag">Linux Namespaces</span>
-              <span class="tag">UFW</span>
+          <div class="card-bento">
+            <div class="card-top">
+              <span class="card-badge">Асинхронные демоны</span>
+              <h3 class="card-title">Высокоскоростные фоновые микросервисы</h3>
+              <p class="card-desc">
+                Разработка демонов на Python 3.12 (AsyncIO) и Go с минимальным потреблением оперативной памяти, пулами соединений и гарантией защиты от OOM Killer.
+              </p>
+            </div>
+            <div class="card-specs">
+              <span>Потребление:</span>
+              <span class="spec-val">&lt; 32 MB ОЗУ под нагрузкой</span>
             </div>
           </div>
 
-          <div class="card">
-            <div class="card-icon">📊</div>
-            <h3>Асинхронные пайплайны & Телеметрия</h3>
-            <p>Разработка распределённых очередей событий и микросервисов на Python (AsyncIO) и Go. Неблокирующий сбор логов, мониторинг системных метрик и предиктивное обнаружение аномалий.</p>
-            <div class="card-tags">
-              <span class="tag">Python 3.12</span>
-              <span class="tag">AsyncIO</span>
-              <span class="tag">Prometheus</span>
-              <span class="tag">ClickHouse</span>
+          <div class="card-bento">
+            <div class="card-top">
+              <span class="card-badge">Изоляция среды</span>
+              <h3 class="card-title">Безопасная контейнеризация</h3>
+              <p class="card-desc">
+                Развёртывание сервисов в изолированных контейнерах с минимальным набором Linux Capabilities, закрытыми портами и строгой привязкой к loopback интерфейсу.
+              </p>
+            </div>
+            <div class="card-specs">
+              <span>Безопасность:</span>
+              <span class="spec-val">Docker Rootless, UFW, loopback</span>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Featured Projects -->
+    <!-- Project Case Studies -->
     <section id="projects">
       <div class="container">
-        <div class="section-head">
-          <div class="section-tag">Портфолио реализации</div>
-          <h2>Реализованные инженерные проекты</h2>
+        <div class="section-label">Кейсы</div>
+        <h2 class="heading-3 section-title">Реализованные инженерные системы</h2>
+
+        <div class="project-row">
+          <div class="project-meta-row">
+            <h3 class="project-name">HyperEdge Gateway</h3>
+            <span class="project-year">2026 • Production</span>
+          </div>
+          <p class="project-body">
+            Распределённый сетевой шлюз для защищённой передачи телекоммуникационных потоков. Реализовано сквозное маскирование протоколов под обычные HTTPS сессии и динамический Rate Limiting.
+          </p>
+          <div class="project-spec-grid">
+            <div>
+              <div class="p-spec-title">Пропускная способность</div>
+              <div class="p-spec-val">1.0 Gbps без деградации</div>
+            </div>
+            <div>
+              <div class="p-spec-title">TLS Handshake</div>
+              <div class="p-spec-val">&lt; 2.8 ms (0-RTT)</div>
+            </div>
+            <div>
+              <div class="p-spec-title">Стек узла</div>
+              <div class="p-spec-val">Nginx, Go Core, Ubuntu 24.04</div>
+            </div>
+          </div>
         </div>
 
-        <div class="project-card">
-          <div class="project-header">
-            <div class="project-title">HyperEdge — Отказоустойчивый распределённый прокси-шлюз</div>
-            <div class="project-meta">Production Case • 2026</div>
+        <div class="project-row">
+          <div class="project-meta-row">
+            <h3 class="project-name">Telemetry Sentinel</h3>
+            <span class="project-year">Open-Source</span>
           </div>
-          <p class="project-desc">
-            Проектирование и развёртывание высоконагруженного шлюза маршрутизации трафика с многоуровневой фильтрацией запросов, защитой от сканирования и динамическим шардированием нагрузки между внутренними узлами обработки.
+          <p class="project-body">
+            Асинхронный агент мониторинга сокетов и памяти для легковесных облачных виртуальных машин. Собирает метрики очередей ядра и уведомляет администратора при аномальных всплесках трафика.
           </p>
-          <div class="project-highlights">
-            <div class="highlight-item">
-              <span class="highlight-label">Пропускная способность</span>
-              <span class="highlight-val">1.2 Gbps постоянный поток</span>
+          <div class="project-spec-grid">
+            <div>
+              <div class="p-spec-title">Частота опроса</div>
+              <div class="p-spec-val">100 ms реалтайм</div>
             </div>
-            <div class="highlight-item">
-              <span class="highlight-label">Задержка на хэндшейке</span>
-              <span class="highlight-val">&lt; 3.2 ms (TLS 0-RTT)</span>
+            <div>
+              <div class="p-spec-title">Отказоустойчивость</div>
+              <div class="p-spec-val">Автоматический рестарт systemd</div>
             </div>
-            <div class="highlight-item">
-              <span class="highlight-label">Стек технологий</span>
-              <span class="highlight-val">Nginx, Go, Docker, Let's Encrypt</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="project-card">
-          <div class="project-header">
-            <div class="project-title">KubeWatch — Агент телеметрии и мониторинга сокетов Linux</div>
-            <div class="project-meta">Open-Source Project</div>
-          </div>
-          <p class="project-desc">
-            Легковесный демон мониторинга на Python / Go для отслеживания состояния TCP соединений, выявления задержек в буферах сокетов и автоматического оповещения администраторов в Telegram при превышении пороговых значений утилизации памяти.
-          </p>
-          <div class="project-highlights">
-            <div class="highlight-item">
-              <span class="highlight-label">Потребление ОЗУ</span>
-              <span class="highlight-val">&lt; 35 MB в рабочем режиме</span>
-            </div>
-            <div class="highlight-item">
-              <span class="highlight-label">Частота опроса</span>
-              <span class="highlight-val">100 ms реалтайм сбор метрик</span>
-            </div>
-            <div class="highlight-item">
-              <span class="highlight-label">Стек технологий</span>
-              <span class="highlight-val">Python AsyncIO, Telegram API, Systemd</span>
+            <div>
+              <div class="p-spec-title">Стек узла</div>
+              <div class="p-spec-val">Python 3.12, AsyncIO, Telegram API</div>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Tech Stack Matrix -->
+    <!-- Tech Arsenal -->
     <section id="stack">
       <div class="container">
-        <div class="section-head">
-          <div class="section-tag">Технологический арсенал</div>
-          <h2>Инструменты и технологии</h2>
-        </div>
+        <div class="section-label">Технологии</div>
+        <h2 class="heading-3 section-title">Инструменты и программный стек</h2>
 
-        <div class="stack-tabs">
-          <button class="stack-tab-btn active" data-cat="all">Все технологии</button>
-          <button class="stack-tab-btn" data-cat="infra">Инфраструктура & Сеть</button>
-          <button class="stack-tab-btn" data-cat="backend">Бэкенд & Языки</button>
-          <button class="stack-tab-btn" data-cat="data">Хранение & Метрики</button>
-        </div>
-
-        <div class="stack-chips">
-          <div class="stack-chip" data-cat="infra">🐧 Linux (Ubuntu / Debian LTS)</div>
-          <div class="stack-chip" data-cat="infra">🌐 Nginx High-Concurrency Tuning</div>
-          <div class="stack-chip" data-cat="infra">🐳 Docker & Containerd</div>
-          <div class="stack-chip" data-cat="infra">⚡ TCP BBR Congestion Control</div>
-          <div class="stack-chip" data-cat="infra">🔒 Let's Encrypt ACME Auto-Renewal</div>
-          <div class="stack-chip" data-cat="infra">🛡️ UFW & Netfilter Rules</div>
-          <div class="stack-chip" data-cat="backend">🐍 Python 3.12 (AsyncIO, Telegram Bots)</div>
-          <div class="stack-chip" data-cat="backend">🐹 Go (High Performance Network APIs)</div>
-          <div class="stack-chip" data-cat="backend">📜 Bash Automation & POSIX Shell</div>
-          <div class="stack-chip" data-cat="data">🐘 PostgreSQL</div>
-          <div class="stack-chip" data-cat="data">⚡ Redis & In-Memory Stores</div>
-          <div class="stack-chip" data-cat="data">📈 Prometheus & Grafana</div>
-          <div class="stack-chip" data-cat="infra">☁️ Cloudflare WARP Anycast Routing</div>
+        <div class="tech-cloud">
+          <span class="tech-item">Linux (Ubuntu / Debian LTS)</span>
+          <span class="tech-item">Nginx High-Concurrency</span>
+          <span class="tech-item">Docker Container Engine</span>
+          <span class="tech-item">TCP BBR Congestion Control</span>
+          <span class="tech-item">Let's Encrypt TLS Automation</span>
+          <span class="tech-item">UFW & Netfilter Rules</span>
+          <span class="tech-item">Python 3.12 (AsyncIO, Telegram Bots)</span>
+          <span class="tech-item">Go (High Performance Core)</span>
+          <span class="tech-item">Bash POSIX Shell Scripting</span>
+          <span class="tech-item">PostgreSQL & ClickHouse</span>
+          <span class="tech-item">Redis In-Memory Caching</span>
+          <span class="tech-item">Cloudflare Anycast Routing</span>
         </div>
       </div>
     </section>
 
-    <!-- Engineering Articles / Blog -->
+    <!-- Engineering Articles -->
     <section id="articles">
       <div class="container">
-        <div class="section-head">
-          <div class="section-tag">Инженерный блог</div>
-          <h2>Архитектурные заметки и статьи</h2>
-        </div>
+        <div class="section-label">Публикации</div>
+        <h2 class="heading-3 section-title">Практические статьи и заметки</h2>
 
-        <a href="#articles" class="article-item">
+        <a href="#articles" class="article-anchor">
           <div>
-            <div class="article-title">Оптимизация TCP BBR для снижения буферблоата в нестабильных мобильных сетях</div>
-            <div class="article-meta">Опубликовано • 15 мин чтения • Практическое руководство</div>
+            <div class="article-name">Оптимизация параметров TCP BBR для минимизации потерь пакетов</div>
+            <div class="article-details">12 мин чтения • Системное администрирование</div>
           </div>
-          <span class="article-tag">Linux Kernel</span>
+          <span class="article-chip">Linux Kernel</span>
         </a>
 
-        <a href="#articles" class="article-item">
+        <a href="#articles" class="article-anchor">
           <div>
-            <div class="article-title">Бесшовный reload Nginx в окружениях с десятками тысяч постоянных WebSocket соединений</div>
-            <div class="article-meta">Опубликовано • 10 мин чтения • DevOps & HighLoad</div>
+            <div class="article-name">Бесшовный reload Nginx при десятках тысяч постоянных WebSocket соединений</div>
+            <div class="article-details">8 мин чтения • HighLoad архитектура</div>
           </div>
-          <span class="article-tag">Nginx / HighLoad</span>
+          <span class="article-chip">Nginx / Edge</span>
         </a>
 
-        <a href="#articles" class="article-item">
+        <a href="#articles" class="article-anchor">
           <div>
-            <div class="article-title">Архитектура асинхронных ботов на Python 3.12: профилирование памяти и защита от OOM Killer</div>
-            <div class="article-meta">Опубликовано • 8 мин чтения • Python AsyncIO</div>
+            <div class="article-name">Профилирование памяти асинхронных Python демонов в изолированных контейнерах</div>
+            <div class="article-details">10 мин чтения • Оптимизация памяти</div>
           </div>
-          <span class="article-tag">Python & AsyncIO</span>
+          <span class="article-chip">Python AsyncIO</span>
         </a>
       </div>
     </section>
 
-    <!-- Contact Section -->
+    <!-- Contact Module -->
     <section id="contact">
       <div class="container">
-        <div class="contact-container">
-          <div class="contact-info">
-            <div class="section-tag">Обратная связь</div>
-            <h3>Обсудить проект или архитектурный консалтинг</h3>
+        <div class="contact-module">
+          <div class="contact-left">
+            <div class="section-label">Связь</div>
+            <h3>Обсудить архитектурную задачу</h3>
             <p>
-              Всегда открыт для сложных технических вызовов: оптимизация производительности сетевых решений, проектирование защищённых облачных контуров и ревизия инфраструктурной безопасности.
+              Консультирую по вопросам проектирования отказоустойчивых сетей, оптимизации серверной производительности и аудиту безопасности облачных инфраструктур.
             </p>
 
-            <div class="contact-meta-item">
+            <div class="contact-line">
               <span>📍</span>
-              <span>Frankfurt / Remote Engineering</span>
+              <span>Frankfurt Cluster / Remote</span>
             </div>
-            <div class="contact-meta-item">
+            <div class="contact-line">
               <span>✉️</span>
               <span>alexei.mizanov@gmail.com</span>
             </div>
-            <div class="contact-meta-item">
+            <div class="contact-line">
               <span>🔑</span>
               <span>PGP: 4B8A 992D 311C 7F01 EA29</span>
             </div>
           </div>
 
           <form id="contactForm" class="contact-form">
-            <div class="form-group">
-              <label for="name">Ваше имя</label>
+            <div class="field">
+              <label for="name">Имя</label>
               <input type="text" id="name" required placeholder="Константин">
             </div>
-            <div class="form-group">
+            <div class="field">
               <label for="email">Электронная почта</label>
-              <input type="email" id="email" required placeholder="example@company.com">
+              <input type="email" id="email" required placeholder="name@company.com">
             </div>
-            <div class="form-group">
-              <label for="message">Сообщение или задача</label>
-              <textarea id="message" rows="4" required placeholder="Краткое описание вашей системы или вопроса..."></textarea>
+            <div class="field">
+              <label for="message">Описание задачи</label>
+              <textarea id="message" rows="4" required placeholder="Краткое описание системы или вопроса..."></textarea>
             </div>
-            <button type="submit" class="btn btn-primary" style="margin-top: 8px;">Отправить запрос</button>
+            <button type="submit" class="btn btn-primary" style="margin-top: 4px;">Отправить запрос</button>
           </form>
         </div>
       </div>
     </section>
   </main>
 
-  <div id="toast" class="toast"></div>
+  <div id="toast" class="toast-notice"></div>
 
-  <!-- Footer -->
+  <!-- Footer (B10) -->
   <footer>
-    <div class="container footer-content">
+    <div class="container footer-inner">
       <div>
-        © 2026 Alexei Mizanov. Все права защищены. Личная инженерная лаборатория.
+        © 2026 Alexei Mizanov. Все права защищены. Инженерная лаборатория системного проектирования.
       </div>
-      <div class="footer-links">
+      <div class="footer-nav">
         <a href="https://github.com/Mizanov" target="_blank" rel="noopener">GitHub</a>
         <a href="/robots.txt">robots.txt</a>
         <a href="/sitemap.xml">sitemap.xml</a>
