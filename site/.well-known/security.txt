@@ -1,0 +1,5 @@
+Contact: mailto:mizanov@gmail.com
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: ru, en
+Canonical: https://{{MAIN_DOMAIN}}/.well-known/security.txt
+Policy: https://{{MAIN_DOMAIN}}/#security
