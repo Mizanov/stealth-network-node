@@ -3,27 +3,33 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mizanov Relay — Cloud Webhook Gateway & MTProto Ingestion</title>
+  <title>Mizanov Relay — Asynchronous Webhook & Event Dispatch Gateway</title>
+  <meta name="description" content="High-concurrency event ingestion, asynchronous webhook delivery, and low-latency payload routing.">
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* Hallmark Cobalt Theme System */
     :root {
       --bg: #000000;
-      --surface-1: #181818;
-      --surface-2: #1f1f1f;
-      --surface-3: #272727;
-      --border: #272727;
-      --border-strong: #313131;
-      --text: #ffffff;
-      --muted: #9b9b9b;
-      --tertiary: #666666;
-      --success: #10b981;
+      --surface-1: #111111;
+      --surface-2: #181818;
+      --surface-3: #222222;
+      --border: #222222;
+      --border-strong: #333333;
+      --text: #ededed;
+      --muted: #888888;
+      --tertiary: #555555;
+      --accent: #38bdf8;
+      --accent-subtle: rgba(56, 189, 248, 0.08);
       --font-sans: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
       --font-mono: 'Geist Mono', ui-monospace, Menlo, monospace;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      overflow-x: clip;
+    }
     body {
       font-family: var(--font-sans);
       background-color: var(--bg);
@@ -35,17 +41,23 @@
       justify-content: space-between;
       -webkit-font-smoothing: antialiased;
     }
-    .container { max-width: 860px; margin: 0 auto; padding: 48px 24px; }
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .container { max-width: 880px; margin: 0 auto; padding: 48px 24px; width: 100%; }
+    
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid var(--border);
       padding-bottom: 24px;
+      gap: 16px;
     }
     .logo {
       font-weight: 600;
-      font-size: 1rem;
+      font-size: 0.95rem;
       display: flex;
       align-items: center;
       gap: 12px;
@@ -58,83 +70,173 @@
       font-family: var(--font-mono);
       font-size: 0.75rem;
       padding: 2px 8px;
-      border-radius: 6px;
+      border-radius: 4px;
     }
     .status {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 0.8rem;
-      color: var(--muted);
-      font-family: var(--font-mono);
-    }
-    .dot {
-      width: 6px;
-      height: 6px;
-      background: var(--success);
-      border-radius: 50%;
-      box-shadow: 0 0 6px var(--success);
-    }
-    .hero { margin: 64px 0 48px; }
-    .hero-tag {
-      font-family: var(--font-mono);
+      gap: 6px;
       font-size: 0.75rem;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 12px;
+      font-family: var(--font-mono);
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+    .status-id { color: var(--text); font-weight: 500; }
+    .status-val { color: var(--accent); }
+
+    .hero { margin: 56px 0 40px; }
+    .hero-tag {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 14px;
     }
     .hero h1 {
-      font-size: 2.75rem;
-      line-height: 1.1;
+      font-size: 2.5rem;
+      line-height: 1.15;
       font-weight: 600;
       letter-spacing: -0.03em;
       margin-bottom: 16px;
       text-wrap: balance;
-      background: linear-gradient(180deg, #ffffff 30%, #9b9b9b 100%);
+      background: linear-gradient(180deg, #ffffff 40%, #999999 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     .hero p {
-      font-size: 1.125rem;
+      font-size: 1.05rem;
       color: var(--muted);
-      max-width: 620px;
+      max-width: 640px;
       line-height: 1.6;
       text-wrap: pretty;
     }
+
+    /* Terminal Console Artifact (Hallmark Cobalt) */
+    .terminal-box {
+      background: var(--surface-1);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 36px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+    }
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .terminal-dots { display: flex; gap: 6px; }
+    .terminal-dots span {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border-strong);
+    }
+    .terminal-code {
+      padding: 18px 20px;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.65;
+      color: var(--text);
+      overflow-x: auto;
+    }
+    .c-comment { color: var(--tertiary); }
+    .c-method { color: #38bdf8; font-weight: 600; }
+    .c-url { color: #a5f3fc; }
+    .c-header { color: #94a3b8; }
+    .c-string { color: #fde047; }
+    .c-key { color: #e2e8f0; }
+
+    /* Bento Grid */
     .bento {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
       gap: 16px;
-      margin-bottom: 32px;
+      margin-bottom: 36px;
     }
     .card {
       background: var(--surface-1);
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 24px;
+      border-radius: 12px;
+      padding: 22px;
       transition: border-color 0.2s ease;
     }
     .card:hover { border-color: var(--border-strong); }
-    .card h3 { font-size: 1.05rem; margin-bottom: 8px; font-weight: 600; }
-    .card p { font-size: 0.875rem; color: var(--muted); line-height: 1.5; text-wrap: pretty; }
-    .code-box {
+    .card h3 { font-size: 0.95rem; margin-bottom: 8px; font-weight: 600; color: var(--text); }
+    .card p { font-size: 0.825rem; color: var(--muted); line-height: 1.55; text-wrap: pretty; }
+
+    /* API Spec Matrix */
+    .spec-table-box {
       background: var(--surface-1);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 20px;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: #38bdf8;
-      overflow-x: auto;
-      line-height: 1.6;
+      overflow: hidden;
+      margin-bottom: 40px;
     }
+    .spec-header {
+      padding: 12px 18px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .spec-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      text-align: left;
+    }
+    .spec-table th, .spec-table td {
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .spec-table th {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-weight: 500;
+      font-size: 0.75rem;
+    }
+    .spec-table tr:last-child td { border-bottom: none; }
+    .spec-method {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--surface-3);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .spec-endpoint {
+      font-family: var(--font-mono);
+      color: var(--text);
+    }
+    .spec-desc { color: var(--muted); }
+
     footer {
       border-top: 1px solid var(--border);
-      padding: 32px 0;
-      text-align: center;
+      padding: 28px 0;
       font-size: 0.8rem;
       color: var(--tertiary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2rem; }
+      header { flex-direction: column; align-items: flex-start; }
+      footer { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
@@ -142,21 +244,53 @@
   <div class="container">
     <header>
       <div class="logo">
-        <span>⚡ Mizanov Cloud Relay</span>
-        <span class="badge">Edge Ingestion v2.6</span>
+        <span>Mizanov Relay</span>
+        <span class="badge">edge-v2.6</span>
       </div>
       <div class="status">
-        <span class="dot"></span>
-        <span>Gateway Operational • 99.98% SLA</span>
+        <span class="status-id">salt-tgweb-01</span>
+        <span>•</span>
+        <span class="status-val">active</span>
       </div>
     </header>
 
     <main>
       <section class="hero">
-        <div class="hero-tag">Edge Networking</div>
+        <div class="hero-tag">// edge dispatch & telemetry gateway</div>
         <h1>Шлюз доставки асинхронных вебхуков и MTProto пакетов</h1>
-        <p>Изолированный граничный узел ретрансляции данных для высокоскоростных защищённых телекоммуникационных сервисов и Telegram API интеграций.</p>
+        <p>Изолированный граничный сервис для потоковой диспетчеризации событий, безопасного туннелирования и распределения нагрузки между микросервисами.</p>
       </section>
+
+      <!-- Hallmark Cobalt Console Artifact -->
+      <div class="terminal-box">
+        <div class="terminal-bar">
+          <div class="terminal-dots">
+            <span></span><span></span><span></span>
+          </div>
+          <span>dispatch-probe // edge-test</span>
+          <span>curl -i</span>
+        </div>
+        <div class="terminal-code">
+<span class="c-comment"># Ingestion probe for incoming event batches</span>
+<span class="c-method">curl</span> -X POST <span class="c-url">https://{{TG_DOMAIN}}/api/v1/dispatch</span> \
+  -H <span class="c-header">"Authorization: Bearer sec_live_89f0a21b..."</span> \
+  -H <span class="c-header">"Content-Type: application/json"</span> \
+  -d <span class="c-string">'{
+    "channel": "telecom.ingress",
+    "event": "message.delivered",
+    "payload": { "session_id": "sess_09a12c", "ttl": 30 },
+    "timestamp": 1730851200
+  }'</span>
+
+<span class="c-comment"># Gateway Response (HTTP/2 200 OK)</span>
+{
+  <span class="c-key">"status"</span>: <span class="c-string">"acknowledged"</span>,
+  <span class="c-key">"dispatch_id"</span>: <span class="c-string">"disp_8f3a2c09b1"</span>,
+  <span class="c-key">"latency_ms"</span>: 1.4,
+  <span class="c-key">"edge_node"</span>: <span class="c-string">"salt-tgweb-01"</span>,
+  <span class="c-key">"crypto"</span>: <span class="c-string">"TLSv1.3/CHACHA20-POLY1305"</span>
+}</div>
+      </div>
 
       <div class="bento">
         <div class="card">
@@ -169,21 +303,49 @@
         </div>
         <div class="card">
           <h3>Низкая сетевая задержка</h3>
-          <p>Маршрутизация пакетов напрямую до европейских дата-центров Telegram в обход транзитных узлов с задержкой менее 14 миллисекунд.</p>
+          <p>Прямой обмен трафиком с европейскими узлами агрегации без транзитных провайдеров со средней задержкой менее 14 миллисекунд.</p>
         </div>
       </div>
 
-      <div class="code-box">
-        // Edge Relay Probe Telemetry<br>
-        GET /healthz HTTP/1.1<br>
-        Host: {{TG_DOMAIN}}<br><br>
-        HTTP/1.1 200 OK<br>
-        { "status": "UP", "cluster": "eu-central-de", "latency": "11.8ms", "crypto": "AES-NI-HW", "congestion": "BBR" }
+      <!-- API Specification Matrix -->
+      <div class="spec-table-box">
+        <div class="spec-header">Ingestion Endpoints Specification</div>
+        <table class="spec-table">
+          <thead>
+            <tr>
+              <th>Method</th>
+              <th>Endpoint</th>
+              <th>Description</th>
+              <th>Auth</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="spec-method">POST</span></td>
+              <td class="spec-endpoint">/api/v1/dispatch</td>
+              <td class="spec-desc">Ingest and route streaming payload to downstream subscriber</td>
+              <td class="spec-desc">Bearer Token</td>
+            </tr>
+            <tr>
+              <td><span class="spec-method">GET</span></td>
+              <td class="spec-endpoint">/healthz</td>
+              <td class="spec-desc">Cluster readiness and upstream DC socket latency probe</td>
+              <td class="spec-desc">Public</td>
+            </tr>
+            <tr>
+              <td><span class="spec-method">GET</span></td>
+              <td class="spec-endpoint">/metrics</td>
+              <td class="spec-desc">Prometheus-compatible ingestion and drop counters</td>
+              <td class="spec-desc">Private Subnet</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </main>
 
     <footer>
-      © 2026 Alexei Mizanov Engineering. Private Edge Relay Node. Все права защищены.
+      <span>Alexei Mizanov Engineering • Private Edge Relay Node</span>
+      <span>Security: Drop 444 on raw IP • TLS 1.3 Strict</span>
     </footer>
   </div>
 </body>

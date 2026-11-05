@@ -10,6 +10,7 @@
 [![Debian 12](https://img.shields.io/badge/Debian-12-red?logo=debian)](https://debian.org)
 [![Sing-Box](https://img.shields.io/badge/Sing--Box-Core-blue?logo=box)](https://sing-box.sagernet.org)
 [![Design: AI Design Skills](https://img.shields.io/badge/Design-AI%20Design%20Skills-black?logo=figma)](https://github.com/elayadesign/ai-design-skills)
+[![Design: Hallmark Anti-Slop](https://img.shields.io/badge/Design-Hallmark%20Anti--Slop-blue?logo=ghost)](https://github.com/Nutlope/hallmark)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker)](https://docker.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -49,16 +50,16 @@
 
 ---
 
-## 🎨 Дизайн-система и облегчение сайта ([AI Design Skills](https://github.com/elayadesign/ai-design-skills))
+## 🎨 Дизайн-система и маскировка ([AI Design Skills](https://github.com/elayadesign/ai-design-skills) + [Hallmark Anti-AI-Slop](https://github.com/Nutlope/hallmark))
 
-Сайты-маскировки спроектированы в строгом соответствии с премиальной дизайн-системой [**AI Design Skills** (`elayadesign/ai-design-skills`)](https://github.com/elayadesign/ai-design-skills), что гарантирует максимальную правдоподобность, эстетику уровня Linear / Vercel и минимальную нагрузку на сервер:
+Сайты-маскировки спроектированы в строгом соответствии с дизайн-системами [**AI Design Skills**](https://github.com/elayadesign/ai-design-skills) и стандартами **Anti-AI-Slop** от [**Hallmark** (`Nutlope/hallmark`)](https://github.com/Nutlope/hallmark). Это гарантирует максимальную правдоподобность, эстетику уровня Linear / Vercel и полное отсутствие «нейросетевых штампов», по которым автоматические системы цензуры вычисляют сайты-заглушки:
 
 * ⚡ **Zero-Bloat архитектура (чистый HTML5/CSS3)**: никаких тяжеловесных JS-фреймворков (React, Next.js, Vue). Полный вес страницы составляет всего **~35 КБ**, время отдачи сервером Nginx — **< 20 мс**, оценка в Google Lighthouse — **100/100**.
-* ✍️ **Типографика без шаблонов (B1 Rule)**: полный отказ от стандартных шрифтов (Inter/Roboto/Arial). Используется эстетичная связка **Manrope** (заголовки и текст) и **Geist Mono** (данные, код, бейджи) с автоматическим выравниванием строк (`text-wrap: balance` и `text-wrap: pretty`).
-* 🖤 **Глубокие матовые поверхности (B4 Rule)**: использование палитры `#000000`, `#181818`, `#1F1F1F` без дешёвых цветных фоновых градиентов. Изящный текстовый градиент применён исключительно к заголовку Hero-секции (`#FFFFFF` → `#9B9B9B`).
-* 📐 **Формула вложенных радиусов (B3 Nested Radius Formula)**: идеальная геометрия карточек по правилу `inner radius = outer radius - gap`.
-* 🫧 **Парящая навигация (B7 Floating Bar)**: компактный плавающий навбар с матовым размытием (`backdrop-filter: blur(20px)`), индикатором статуса ноды и бесшовным переключением тёмной/светлой темы.
-* 🛡️ **Анти-зондирование цензоров**: благодаря безупречному визуальному исполнению автоматические активные зонды (Active Probing РКН/ТСПУ) классифицируют домен как легитимный production-сервер инженера и снимают любые подозрения на прокси.
+* 🖥️ **Реальные артефакты вместо выдуманных метрик (Hallmark Rule 8)**: отказ от шаблонных плашек «99.9% аптайм / 10k клиентов». В Hero-секции размещён **интерактивный консольный инспектор параметров ноды**, выводящий реальные характеристики сетевого ядра (Linux 6.8, TCP BBR, drop 444 stealth, TLS 1.3 ECDSA).
+* ✍️ **Типографика без шаблонов (B1 Rule & Hallmark Rule 9)**: полный отказ от стандартных шрифтов (Inter/Roboto/Arial). Используется эстетичная связка **Manrope** (заголовки и текст) и **Geist Mono** (данные, код, бейджи). Все метки и теги оформлены естественным строчным регистром (sentence-case) без искусственного капса и трекинга.
+* 🌐 **Архитектура шлюза в стиле Hallmark Cobalt Theme**: поддомен `tg.` оформлен как полноценная интерактивная документация микросервисного API-шлюза доставки вебхуков (с реальным `curl`-запросом, структурой ответа и матрицей эндпоинтов `/api/v1/dispatch`, `/healthz`, `/metrics`).
+* 🖤 **Глубокие матовые поверхности (B4 Rule)**: палитра `#000000`, `#111111`, `#181818` без кричащих сине-фиолетовых градиентов.
+* 🛡️ **Анти-зондирование цензоров**: благодаря безупречному визуальному и техническому исполнению автоматические активные зонды (Active Probing РКН/ТСПУ) классифицируют домен как легитимный production-сервер инженера и снимают любые подозрения на прокси.
 
 ---
 

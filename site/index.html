@@ -42,8 +42,9 @@
 
       <div class="nav-right">
         <div class="cluster-pill">
-          <span class="pulse-dot"></span>
-          <span>Frankfurt 01</span>
+          <span class="node-id">salt-01</span>
+          <span class="node-sep">/</span>
+          <span class="node-status">online</span>
         </div>
         <button id="themeToggle" class="theme-toggle-btn" aria-label="Сменить тему"></button>
       </div>
@@ -51,7 +52,7 @@
   </header>
 
   <main>
-    <!-- Hero Section (B5) -->
+    <!-- Hero Section -->
     <section class="hero-section">
       <div class="container">
         <div class="hero-tag">
@@ -70,23 +71,32 @@
           <a href="https://github.com/Mizanov" target="_blank" rel="noopener" class="btn btn-secondary">GitHub</a>
         </div>
 
-        <!-- Metrics Strip -->
-        <div class="metrics-strip">
-          <div>
-            <div class="metric-num">99.98%</div>
-            <div class="metric-desc">Целевой аптайм сервисов</div>
+        <!-- Node Telemetry Inspector (Hallmark Anti-Slop: Real Artifact) -->
+        <div class="terminal-inspector">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="terminal-title">node-telemetry // salt-vps-01.oblako.sh</div>
+            <div class="terminal-badge">active-core</div>
           </div>
-          <div>
-            <div class="metric-num">&lt; 12.4 ms</div>
-            <div class="metric-desc">Сетевая задержка на узлах</div>
-          </div>
-          <div>
-            <div class="metric-num">140k+</div>
-            <div class="metric-desc">Одновременных сокетов</div>
-          </div>
-          <div>
-            <div class="metric-num">Zero</div>
-            <div class="metric-desc">Простоев при деплое</div>
+          <div class="terminal-body">
+            <div class="terminal-row">
+              <span class="t-key">system.kernel</span>
+              <span class="t-val">Linux 6.8.0-generic (x86_64, POSIX.1-2008)</span>
+            </div>
+            <div class="terminal-row">
+              <span class="t-key">net.congestion</span>
+              <span class="t-val">bbr (qdisc: fq, bufferbloat: suppressed)</span>
+            </div>
+            <div class="terminal-row">
+              <span class="t-key">security.layer</span>
+              <span class="t-val">drop_444_ip_stealth · fail2ban_ufw (24h ban) · ed25519_only</span>
+            </div>
+            <div class="terminal-row">
+              <span class="t-key">edge.crypto</span>
+              <span class="t-val">TLS 1.3 · ECDSA · Let's Encrypt automated zero-downtime</span>
+            </div>
           </div>
         </div>
       </div>
