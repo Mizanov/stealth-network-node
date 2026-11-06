@@ -372,28 +372,22 @@ async def process_new_user(update: Update, username: str):
             f"✅ **Ключ успешно создан!**\n\n"
             f"👤 **Пользователь:** `{username}`\n"
             f"🔑 **UUID:** `{res['uuid']}`\n\n"
-            f"📋 **1. Универсальная подписка (все протоколы):**\n"
+            f"📋 **Универсальная подписка (4 в 1):**\n"
             f"`{incy_sub_url}`\n\n"
-            f"⚡ **2. [Основной] VLESS + REALITY + Vision (TCP):**\n"
-            f"`{reality_link}`\n\n"
-            f"🛡️ **3. [Резерв] VLESS + XHTTP + REALITY:**\n"
-            f"`{xhttp_link}`\n\n"
-            f"📦 **4. Конфиг Sing-Box JSON:**\n"
+            f"📦 **Конфиг Sing-Box JSON:**\n"
             f"`{singbox_json_url}`\n\n"
-            f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код для моментального подключения!*"
+            f"💡 *Отсканируйте QR-код для подключения VLESS-REALITY-Vision или скопируйте ссылку подписки.*"
         )
     else:
         caption = (
             f"✅ **Ключ успешно создан!**\n\n"
             f"👤 **Пользователь:** `{username}`\n"
             f"🔑 **UUID:** `{res['uuid']}`\n\n"
-            f"📋 **1. Ссылка на ПОДПИСКУ (Incy / Happ / V2Ray / Sing-Box):**\n"
+            f"📋 **Ссылка на подписку:**\n"
             f"`{incy_sub_url}`\n\n"
-            f"⚡ **2. Прямая VLESS ссылка (нажмите для копирования):**\n"
-            f"`{vless_link}`\n\n"
-            f"📦 **3. Конфиг Sing-Box JSON:**\n"
+            f"📦 **Конфиг Sing-Box JSON:**\n"
             f"`{singbox_json_url}`\n\n"
-            f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код в приложении (Incy, Happ, v2rayNG, Sing-Box)!*"
+            f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
         )
 
     keyboard = [
@@ -407,11 +401,43 @@ async def process_new_user(update: Update, username: str):
     primary_qr_link = reality_link if reality_link else vless_link
     qr_img = generate_qr(primary_qr_link)
 
-    await update.message.reply_photo(
-        photo=qr_img,
-        caption=caption,
+    try:
+        await update.message.reply_photo(
+            photo=qr_img,
+            caption=caption[:1024],
+            parse_mode="Markdown",
+            reply_markup=reply_markup
+        )
+    except Exception as photo_err:
+        logger.warning(f"Failed to send QR photo: {photo_err}, falling back to text message")
+        await update.message.reply_text(
+            caption,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
+            disable_web_page_preview=True
+        )
+
+    # Follow up with direct connection strings
+    if reality_link:
+        direct_msg = (
+            f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
+            f"1️⃣ **[Основной] VLESS + REALITY + Vision (TCP):**\n"
+            f"`{reality_link}`\n\n"
+            f"2️⃣ **[Резерв] VLESS + XHTTP + REALITY:**\n"
+            f"`{xhttp_link}`\n\n"
+            f"3️⃣ **[WS Legacy] VLESS + WS + TLS:**\n"
+            f"`{vless_link}`"
+        )
+    else:
+        direct_msg = (
+            f"⚡ **Прямая ссылка VLESS (`{username}`):**\n\n"
+            f"`{vless_link}`"
+        )
+
+    await update.message.reply_text(
+        direct_msg,
         parse_mode="Markdown",
-        reply_markup=reply_markup
+        disable_web_page_preview=True
     )
 
 
@@ -610,6 +636,18 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Global unhandled exception logger and user notification."""
+    logger.error("Unhandled exception processing update: %s", context.error, exc_info=context.error)
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "⚠️ Произошла внутренняя ошибка при обработке запроса. Подробности записаны в системный журнал."
+            )
+        except Exception:
+            pass
+
+
 def main():
     try:
         migrated = sync_subscriptions_from_config(
@@ -648,6 +686,7 @@ def main():
 
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
+    app.add_error_handler(error_handler)
 
     logger.info("Bot starting...")
     app.run_polling()
