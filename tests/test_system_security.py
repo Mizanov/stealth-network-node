@@ -38,10 +38,17 @@ class TestSudoersConfiguration(unittest.TestCase):
                 continue
             self.assertTrue(line.startswith("incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control"))
             # Must strictly name /usr/local/bin/singbox-control, never general shells or ALL
-            self.assertNotIn("ALL=(ALL) ALL", line)
-            self.assertNotIn("NOPASSWD: ALL", line)
-            self.assertNotIn("/bin/bash", line)
-            self.assertNotIn("/bin/sh", line)
+
+    def test_sudoers_has_all_control_actions(self):
+        """Sudoers must allow check, reload, rollback, status, and tgproxy-link."""
+        with open(self.sudoers_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        for action in ("check", "reload", "rollback", "status", "tgproxy-link"):
+            self.assertIn(f"/usr/local/bin/singbox-control {action}", content)
+        self.assertNotIn("ALL=(ALL) ALL", content)
+        self.assertNotIn("NOPASSWD: ALL", content)
+        self.assertNotIn("/bin/bash", content)
+        self.assertNotIn("/bin/sh", content)
 
 
 class TestSingboxControlHelper(unittest.TestCase):
@@ -154,14 +161,13 @@ class TestSystemdServiceHardening(unittest.TestCase):
     def test_sandboxing_directives(self):
         """Critical systemd hardening directives must be present."""
         expected_directives = [
-            "NoNewPrivileges=true",
+            "NoNewPrivileges=false",
             "PrivateTmp=true",
             "ProtectSystem=strict",
             "ProtectHome=true",
             "ProtectKernelTunables=true",
             "ProtectKernelModules=true",
             "ProtectControlGroups=true",
-            "RestrictSUIDSGID=true",
             "LockPersonality=true",
             "CapabilityBoundingSet=",
         ]

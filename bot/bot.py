@@ -43,6 +43,7 @@ from subscription_manager import (
     get_subscription_info,
     rotate_subscription_token,
     revoke_subscription,
+    sync_subscriptions_from_config,
     SubscriptionError
 )
 
@@ -479,7 +480,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 trojan_path=TROJAN_PATH,
                 www_dir=WWW_DIR,
                 vless_template=VLESS_TEMPLATE,
-                trojan_template=TROJAN_TEMPLATE
+                trojan_template=TROJAN_TEMPLATE,
+                config_path=CONFIG_JSON
             )
             new_sub_url = new_sub["sub_url"]
             token_preview = new_sub["token"][:6] + "..." + new_sub["token"][-4:]
@@ -524,6 +526,22 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    try:
+        migrated = sync_subscriptions_from_config(
+            config_path=CONFIG_JSON,
+            domain=DOMAIN,
+            subs_path=SUBS_PATH,
+            vless_path=VLESS_PATH,
+            trojan_path=TROJAN_PATH,
+            www_dir=WWW_DIR,
+            vless_template=VLESS_TEMPLATE,
+            trojan_template=TROJAN_TEMPLATE
+        )
+        if migrated > 0:
+            logger.info("Migrated %d legacy user(s) to secure tokenized subscriptions.", migrated)
+    except Exception as sync_err:
+        logger.warning("Subscription synchronization encountered a non-fatal error: %s", sync_err)
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))

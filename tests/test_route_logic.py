@@ -53,7 +53,7 @@ def match_route_rule(rule: dict, domain: str, ip: str = None, matched_rulesets: 
         for cidr in rule["ip_cidr"]:
             if cidr.startswith("{{"):
                 # Template placeholder
-                if ip == "187.55.163.81" or ip == "127.0.0.1":
+                if ip == "198.51.100.1" or ip == "127.0.0.1":
                     matched = True
                     break
             else:
@@ -192,7 +192,7 @@ class TestClientRoutingLogic(unittest.TestCase):
             self.assertEqual(evaluate_route(rules, "tracker.torrent.org", matched_rulesets={"torrent-clients"}), "direct")
 
             # 6. Server IP bypass
-            self.assertEqual(evaluate_route(rules, "server-direct", ip="187.55.163.81"), "direct")
+            self.assertEqual(evaluate_route(rules, "server-direct", ip="198.51.100.1"), "direct")
 
             # 7. Unmatched foreign sites from TUN fall through to proxy
             self.assertEqual(evaluate_route(rules, "instagram.com"), "proxy")

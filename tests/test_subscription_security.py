@@ -27,6 +27,7 @@ from subscription_manager import (
     get_subscription_info,
     rotate_subscription_token,
     revoke_subscription,
+    sync_subscriptions_from_config,
     SubscriptionError
 )
 
@@ -235,6 +236,90 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         )
         self.assertIsNone(info)
 
+    def test_sync_subscriptions_from_config_migrates_legacy_users(self):
+        """Users in config.json missing from subscriptions.json must be migrated."""
+        mock_cfg = os.path.join(self.test_dir, "config.json")
+        with open(mock_cfg, "w", encoding="utf-8") as f:
+            json.dump({
+                "inbounds": [
+                    {
+                        "tag": "vless-in",
+                        "type": "vless",
+                        "users": [{"name": "legacy_user", "uuid": "uuid-legacy-123"}]
+                    },
+                    {
+                        "tag": "trojan-in",
+                        "type": "trojan",
+                        "users": [{"name": "legacy_user", "password": "pw-legacy-123"}]
+                    }
+                ]
+            }, f)
+
+        # Place legacy un-tokenized file in www_dir
+        legacy_txt = os.path.join(self.www_dir, "legacy_user.txt")
+        os.makedirs(self.www_dir, exist_ok=True)
+        with open(legacy_txt, "w", encoding="utf-8") as f:
+            f.write("old-base64")
+
+        migrated = sync_subscriptions_from_config(
+            config_path=mock_cfg,
+            domain="vpn.example.com",
+            subs_path="sub",
+            vless_path="vpath",
+            trojan_path="tpath",
+            www_dir=self.www_dir,
+            vless_template=self.vless_tmpl,
+            trojan_template=self.trj_tmpl,
+            registry_path=self.registry_path,
+            lock_path=self.lock_path
+        )
+        self.assertEqual(migrated, 1)
+
+        # Verify user now has token in registry
+        info = get_subscription_info("legacy_user", "vpn.example.com", "sub", self.registry_path, self.lock_path)
+        self.assertIsNotNone(info)
+        token = info["token"]
+        self.assertTrue(os.path.exists(os.path.join(self.www_dir, f"{token}.txt")))
+
+        # Legacy file must be deleted
+        self.assertFalse(os.path.exists(legacy_txt))
+
+    def test_rotate_subscription_token_fallback_to_config(self):
+        """Rotating token for un-migrated user falls back to reading credentials from config.json."""
+        mock_cfg = os.path.join(self.test_dir, "config.json")
+        with open(mock_cfg, "w", encoding="utf-8") as f:
+            json.dump({
+                "inbounds": [
+                    {
+                        "tag": "vless-in",
+                        "type": "vless",
+                        "users": [{"name": "unmigrated_user", "uuid": "uuid-unmigrated"}]
+                    },
+                    {
+                        "tag": "trojan-in",
+                        "type": "trojan",
+                        "users": [{"name": "unmigrated_user", "password": "pw-unmigrated"}]
+                    }
+                ]
+            }, f)
+
+        rotated = rotate_subscription_token(
+            username="unmigrated_user",
+            domain="vpn.example.com",
+            subs_path="sub",
+            vless_path="vpath",
+            trojan_path="tpath",
+            www_dir=self.www_dir,
+            vless_template=self.vless_tmpl,
+            trojan_template=self.trj_tmpl,
+            config_path=mock_cfg,
+            registry_path=self.registry_path,
+            lock_path=self.lock_path
+        )
+        self.assertIsNotNone(rotated)
+        self.assertEqual(rotated["username"], "unmigrated_user")
+        self.assertEqual(rotated["vless_uuid"], "uuid-unmigrated")
+
 
 class TestNginxSubscriptionHardening(unittest.TestCase):
     """Verifies Nginx template enforces autoindex off, access_log off, and anti-caching."""
@@ -247,19 +332,25 @@ class TestNginxSubscriptionHardening(unittest.TestCase):
             content = f.read()
 
         # Find subscription location block
-        self.assertIn("location ~ ^/{{SUBS_PATH}}/", content)
-        sub_block = content[content.find("location ~ ^/{{SUBS_PATH}}/"):content.find("location /{{RULESET_PATH}}/")]
+        self.assertIn("location ~ ^/{{SUBS_PATH}}", content)
+        sub_block = content[content.find("location ~ ^/{{SUBS_PATH}}"):content.find("location /{{RULESET_PATH}}/")]
 
         # Autoindex must be explicitly off (anti-directory enumeration)
         self.assertIn("autoindex off;", sub_block)
 
-        # Access log must be off to protect tokens from being recorded in logs
+        # Access log and not found log must be off to protect tokens from being recorded in logs
         self.assertIn("access_log off;", sub_block)
+        self.assertIn("log_not_found off;", sub_block)
 
         # Anti-caching headers must be present
         self.assertIn("Cache-Control", sub_block)
         self.assertIn("no-store", sub_block)
         self.assertIn("Pragma", sub_block)
+
+        # WebSocket proxy locations must have access_log off to protect VLESS and Trojan paths
+        ws_proxy_block = content[content.find("location @ws_proxy"):content.find("# gzip")]
+        self.assertIn("access_log off;", ws_proxy_block)
+        self.assertIn("log_not_found off;", ws_proxy_block)
 
 
 if __name__ == "__main__":

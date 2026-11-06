@@ -123,8 +123,8 @@ http {
 
     # Site
     server {
-        listen                               443 ssl;
-        listen                               [::]:443 ssl;
+        listen                               443 ssl so_keepalive=on;
+        listen                               [::]:443 ssl so_keepalive=on;
         http2                                on;
         server_name                          {{DOMAIN}};
         # root                                 /var/www/html;
@@ -160,11 +160,12 @@ http {
         }
 
         # Subscription (Hardened: anti-enumeration, autoindex disabled, logs muted to protect secret tokens)
-        location ~ ^/{{SUBS_PATH}}/ {
+        location ~ ^/{{SUBS_PATH}} {
             limit_req zone=limit_sub burst=20 nodelay;
             root /var/www;
             autoindex off;
             access_log off;
+            log_not_found off;
 
             # Security and anti-caching headers for sensitive subscription tokens
             add_header Access-Control-Allow-Origin * always;
@@ -181,20 +182,26 @@ http {
             add_header Content-disposition "attachment";
         }
 
-        # Trojan
+        # Trojan (VPN WebSocket proxy - access log muted to protect secret path)
         location = /{{TROJAN_PATH}} {
+            access_log off;
+            log_not_found off;
             set $ws_port 10443;
             try_files "" @ws_proxy;
         }
 
-        # VLESS
+        # VLESS (VPN WebSocket proxy - access log muted to protect secret path)
         location = /{{VLESS_PATH}} {
+            access_log off;
+            log_not_found off;
             set $ws_port 11443;
             try_files "" @ws_proxy;
         }
 
         # Reverse proxy
         location @ws_proxy {
+            access_log off;
+            log_not_found off;
             if ($http_upgrade != "websocket") {
                 return 404;
             }

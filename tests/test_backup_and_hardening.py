@@ -9,7 +9,9 @@ Integration and security tests for Stage 6:
 """
 
 import os
+import io
 import stat
+import tarfile
 import subprocess
 import tempfile
 import time
@@ -141,7 +143,7 @@ class TestNginxHardening(unittest.TestCase):
 
     def test_subscription_path_access_log_disabled(self):
         """Subscription path must remain access_log off to prevent leaking secret tokens."""
-        subs_block = self.nginx_conf[self.nginx_conf.find("location ~ ^/{{SUBS_PATH}}/"):]
+        subs_block = self.nginx_conf[self.nginx_conf.find("location ~ ^/{{SUBS_PATH}}"):]
         subs_block = subs_block[:subs_block.find("location /{{RULESET_PATH}}/")]
         self.assertIn("access_log off;", subs_block)
 
@@ -210,7 +212,7 @@ class TestHardenedBackupScript(unittest.TestCase):
 
         res = subprocess.run([str(self.backup_sh), "--verify", str(archive)], capture_output=True, text=True)
         self.assertEqual(res.returncode, 0)
-        self.assertIn("Archive is valid", res.stdout)
+        self.assertTrue("Archive passed all security and structural audits" in res.stdout or "Archive is valid" in res.stdout)
 
     def test_backup_verify_subcommand_corrupt_archive(self):
         """backup.sh --verify returns 1 for a corrupted archive."""
@@ -239,7 +241,7 @@ class TestHardenedBackupScript(unittest.TestCase):
             text=True
         )
         self.assertEqual(res.returncode, 0, f"Restore failed: {res.stderr}\n{res.stdout}")
-        self.assertIn("Archive restored successfully", res.stdout)
+        self.assertTrue("Archive restored" in res.stdout)
 
         # Verify restored content
         restored_files = list(restore_dest.rglob("singbox_config.json"))
@@ -257,6 +259,70 @@ class TestHardenedBackupScript(unittest.TestCase):
         res = subprocess.run([str(self.backup_sh)], capture_output=True, text=True, env=env)
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("None of the target backup paths exist", res.stderr)
+
+    def test_backup_rejects_path_traversal_archive(self):
+        """Archives containing '..' path traversal components must be blocked."""
+        evil_archive = self.backup_dir / "evil_traversal.tar.gz"
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(evil_archive, "w:gz") as tar:
+            data = b"injected root shell"
+            ti = tarfile.TarInfo(name="../../etc/cron.d/evil")
+            ti.size = len(data)
+            tar.addfile(ti, io.BytesIO(data))
+
+        res = subprocess.run([str(self.backup_sh), "--verify", str(evil_archive)], capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("path traversal", res.stderr)
+
+    def test_backup_rejects_absolute_path_archive(self):
+        """Archives containing absolute paths starting with '/' must be blocked."""
+        evil_archive = self.backup_dir / "evil_abs.tar.gz"
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(evil_archive, "w:gz") as tar:
+            data = b"injected"
+            ti = tarfile.TarInfo(name="/etc/shadow")
+            ti.size = len(data)
+            tar.addfile(ti, io.BytesIO(data))
+
+        res = subprocess.run([str(self.backup_sh), "--verify", str(evil_archive)], capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("absolute paths", res.stderr)
+
+    def test_backup_rejects_dangerous_symlink_archive(self):
+        """Archives containing symlinks pointing to absolute paths or escaping outwards must be blocked."""
+        evil_archive = self.backup_dir / "evil_symlink.tar.gz"
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        with tarfile.open(evil_archive, "w:gz") as tar:
+            ti = tarfile.TarInfo(name="symlink_to_root")
+            ti.type = tarfile.SYMTYPE
+            ti.linkname = "/etc/passwd"
+            tar.addfile(ti)
+
+        res = subprocess.run([str(self.backup_sh), "--verify", str(evil_archive)], capture_output=True, text=True)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("dangerous symlinks", res.stderr)
+
+    def test_backup_restore_sanitizes_permissions(self):
+        """Sensitive restored files (*.key, privkey.pem, .env, subscriptions.json) get 0600."""
+        # Create a mock target with privkey.pem having overly open permissions (0644)
+        privkey = self.mock_data / "privkey.pem"
+        privkey.write_text("FAKE RSA PRIVATE KEY", encoding="utf-8")
+        privkey.chmod(0o644)
+
+        env = {
+            **os.environ,
+            "BACKUP_DIR": str(self.backup_dir),
+            "BACKUP_TARGETS": str(self.mock_data)
+        }
+        subprocess.run([str(self.backup_sh)], capture_output=True, text=True, env=env, check=True)
+        archive = next(self.backup_dir.glob("vps_backup_*.tar.gz"))
+
+        restore_dest = self.base_dir / "restored_perm_check"
+        subprocess.run([str(self.backup_sh), "--restore", str(archive), str(restore_dest)], check=True)
+
+        restored_privkey = list(restore_dest.rglob("privkey.pem"))[0]
+        mode = stat.S_IMODE(restored_privkey.stat().st_mode)
+        self.assertEqual(mode, 0o600, f"Restored privkey.pem mode {oct(mode)} != 0600")
 
     def test_backup_prunes_older_archives(self):
         """backup.sh deletes archives older than RETENTION_DAYS."""

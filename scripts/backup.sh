@@ -28,15 +28,35 @@ verify_archive() {
         return 1
     fi
 
-    echo "[*] Verifying integrity of $archive_path..."
+    echo "[*] Verifying structural integrity of $archive_path..."
     if ! tar -tzf "$archive_path" >/dev/null 2>&1; then
         echo "[-] Error: Archive verification failed! File is corrupt or not a valid gzip tarball." >&2
         return 1
     fi
 
+    echo "[*] Checking for Path Traversal and absolute paths..."
+    # 1. Reject absolute paths starting with /
+    if tar -tzf "$archive_path" | grep -qE '^/'; then
+        echo "[-] Security Error: Archive contains absolute paths starting with '/'. Extraction blocked!" >&2
+        return 1
+    fi
+
+    # 2. Reject path traversal (..)
+    if tar -tzf "$archive_path" | grep -qE '(^|/)\.\.(/|$)'; then
+        echo "[-] Security Error: Archive contains path traversal components ('..'). Extraction blocked!" >&2
+        return 1
+    fi
+
+    echo "[*] Auditing symlinks and hardlinks for escape attempts..."
+    # 3. Reject symlinks or hardlinks pointing to absolute paths or traversing outwards
+    if tar -tvzf "$archive_path" 2>/dev/null | grep -E '^[l|h]' | grep -qE '(->\s*/|->\s*.*\.\.|link to\s*/|link to\s*.*\.\.)'; then
+        echo "[-] Security Error: Archive contains dangerous symlinks/hardlinks pointing to absolute paths or traversing directories. Extraction blocked!" >&2
+        return 1
+    fi
+
     local file_count
     file_count=$(tar -tzf "$archive_path" | wc -l | tr -d ' ')
-    echo "[+] Archive is valid ($file_count entries)."
+    echo "[+] Archive passed all security and structural audits ($file_count safe entries)."
     return 0
 }
 
@@ -50,13 +70,22 @@ restore_archive() {
     fi
 
     mkdir -p "$dest_dir"
-    echo "[*] Restoring archive $archive_path into $dest_dir..."
-    if ! tar -xzf "$archive_path" -C "$dest_dir"; then
-        echo "[-] Error: Failed to extract archive into $dest_dir." >&2
+    local canonical_dest
+    canonical_dest=$(cd "$dest_dir" && pwd -P)
+
+    echo "[*] Restoring archive $archive_path into $canonical_dest..."
+    if ! tar -xzf "$archive_path" -C "$canonical_dest"; then
+        echo "[-] Error: Failed to extract archive into $canonical_dest." >&2
         return 1
     fi
 
-    echo "[+] Archive restored successfully into $dest_dir."
+    # Enforce safe permissions on restored artifacts
+    echo "[*] Enforcing safe permissions on restored files..."
+    chmod -R o-w "$canonical_dest" 2>/dev/null || true
+    # Restrict permissions on sensitive configuration / keys if present
+    find "$canonical_dest" -type f \( -name "*.key" -o -name "privkey.pem" -o -name ".env" -o -name "subscriptions.json" \) -exec chmod 600 {} + 2>/dev/null || true
+
+    echo "[+] Archive restored and sanitized successfully into $canonical_dest."
     return 0
 }
 

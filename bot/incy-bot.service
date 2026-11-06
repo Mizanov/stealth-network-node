@@ -14,7 +14,9 @@ Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/opt/incy-bot/.env
 
 # Security Hardening & Sandboxing
-NoNewPrivileges=true
+# Note: NoNewPrivileges and RestrictSUIDSGID must remain disabled so sudo can execute
+# the strictly whitelisted root helper /usr/local/bin/singbox-control via /etc/sudoers.d/incy-bot.
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
@@ -22,7 +24,6 @@ ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-RestrictSUIDSGID=true
 LockPersonality=true
 ReadWritePaths=/opt/incy-bot /var/www /etc/sing-box /tmp
 

@@ -234,32 +234,51 @@ def rotate_subscription_token(
     www_dir: str,
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
+    config_path: Optional[str] = None,
     registry_path: str = DEFAULT_REGISTRY_PATH,
     lock_path: str = DEFAULT_LOCK_PATH
 ) -> Dict[str, Any]:
     """
     Rotates a user's subscription token:
     Revokes the old token, invalidates old files, and generates a new secret URL.
+    If user is missing from registry but exists in sing-box config, migrates automatically.
     """
     info = get_subscription_info(username, domain, subs_path, registry_path, lock_path)
-    if not info:
-        raise SubscriptionError(f"Подписка для пользователя '{username}' не найдена в реестре.")
+    vless_uuid = None
+    trojan_pass = None
 
-    # Get UUID and password from existing entry
-    registry, lock_fd = _lock_and_load_registry(registry_path, lock_path)
-    try:
-        entry = registry.get(username, {})
-        vless_uuid = entry.get("vless_uuid")
-        trojan_pass = entry.get("trojan_pass")
-    finally:
+    if info:
+        # Get UUID and password from existing entry
+        registry, lock_fd = _lock_and_load_registry(registry_path, lock_path)
         try:
-            fcntl.flock(lock_fd, fcntl.LOCK_UN)
-        except OSError:
-            pass
-        os.close(lock_fd)
+            entry = registry.get(username, {})
+            vless_uuid = entry.get("vless_uuid")
+            trojan_pass = entry.get("trojan_pass")
+        finally:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            os.close(lock_fd)
+    elif config_path and os.path.exists(config_path):
+        # Fallback to reading credentials from sing-box config (migration support)
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            for ib in cfg.get("inbounds", []):
+                if ib.get("tag") == "vless-in" or ib.get("type") == "vless":
+                    for u in ib.get("users", []):
+                        if u.get("name") == username:
+                            vless_uuid = u.get("uuid")
+                elif ib.get("tag") == "trojan-in" or ib.get("type") == "trojan":
+                    for u in ib.get("users", []):
+                        if u.get("name") == username:
+                            trojan_pass = u.get("password")
+        except Exception as e:
+            logger.error("Failed to read credentials from %s for user %s: %s", config_path, username, e)
 
     if not vless_uuid or not trojan_pass:
-        raise SubscriptionError("Не удалось получить реквизиты пользователя для ротации.")
+        raise SubscriptionError(f"Не удалось получить реквизиты пользователя '{username}' для ротации.")
 
     return create_or_update_subscription(
         username=username,
@@ -275,6 +294,92 @@ def rotate_subscription_token(
         registry_path=registry_path,
         lock_path=lock_path
     )
+
+
+def sync_subscriptions_from_config(
+    config_path: str,
+    domain: str,
+    subs_path: str,
+    vless_path: str,
+    trojan_path: str,
+    www_dir: str,
+    vless_template: str = "/opt/incy-bot/template-vless.json",
+    trojan_template: str = "/opt/incy-bot/template-trj.json",
+    registry_path: str = DEFAULT_REGISTRY_PATH,
+    lock_path: str = DEFAULT_LOCK_PATH
+) -> int:
+    """
+    Synchronizes users from sing-box config.json with the subscriptions registry:
+    - Automatically migrates existing users missing from subscriptions.json
+    - Generates 128-bit secure tokens for them
+    - Cleans up legacy un-tokenized files (<username>.txt) from www_dir
+    Returns count of migrated users.
+    """
+    if not os.path.exists(config_path):
+        logger.warning("Config path '%s' not found for subscription sync.", config_path)
+        return 0
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except Exception as e:
+        logger.error("Failed to read config for subscription sync: %s", e)
+        return 0
+
+    vless_users = {}
+    trojan_users = {}
+    for ib in cfg.get("inbounds", []):
+        tag = ib.get("tag", "")
+        if tag == "vless-in" or ib.get("type") == "vless":
+            for u in ib.get("users", []):
+                name = u.get("name")
+                uuid = u.get("uuid")
+                if name and uuid:
+                    vless_users[name] = uuid
+        elif tag == "trojan-in" or ib.get("type") == "trojan":
+            for u in ib.get("users", []):
+                name = u.get("name")
+                pw = u.get("password")
+                if name and pw:
+                    trojan_users[name] = pw
+
+    active_config_users = set(vless_users.keys()) | set(trojan_users.keys())
+    migrated_count = 0
+
+    for user in active_config_users:
+        uuid = vless_users.get(user, "")
+        pw = trojan_users.get(user, "")
+        if not uuid or not pw:
+            continue
+
+        existing_info = get_subscription_info(user, domain, subs_path, registry_path, lock_path)
+        if not existing_info:
+            logger.info("Migrating legacy user '%s' to tokenized subscription...", user)
+            create_or_update_subscription(
+                username=user,
+                vless_uuid=uuid,
+                trojan_pass=pw,
+                domain=domain,
+                subs_path=subs_path,
+                vless_path=vless_path,
+                trojan_path=trojan_path,
+                www_dir=www_dir,
+                vless_template=vless_template,
+                trojan_template=trojan_template,
+                registry_path=registry_path,
+                lock_path=lock_path
+            )
+            # Remove legacy files
+            for legacy_name in (f"{user}.txt", f"{user}-VLESS-CLIENT.json", f"{user}-TRJ-CLIENT.json"):
+                legacy_file = os.path.join(www_dir, legacy_name)
+                if os.path.exists(legacy_file):
+                    try:
+                        os.remove(legacy_file)
+                    except OSError:
+                        pass
+            migrated_count += 1
+
+    return migrated_count
 
 
 def revoke_subscription(
