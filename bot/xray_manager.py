@@ -204,7 +204,10 @@ def atomic_modify_xray_config(
                     raise XrayValidationError(f"Xray validation rejected configuration: {val_err}")
 
             # Backup current config
-            shutil.copy2(config_path, backup_path)
+            try:
+                shutil.copyfile(config_path, backup_path)
+            except Exception as b_err:
+                logger.warning("Could not create Xray backup file '%s': %s", backup_path, b_err)
 
             # Atomic replace
             os.replace(tmp_path, config_path)
@@ -221,8 +224,8 @@ def atomic_modify_xray_config(
                 except Exception as rel_err:
                     logger.critical("Xray reload failed! Rolling back from backup: %s", rel_err)
                     if os.path.exists(backup_path):
-                        shutil.copy2(backup_path, config_path)
                         try:
+                            shutil.copyfile(backup_path, config_path)
                             control_runner("xray-reload", None)
                         except Exception:
                             pass
