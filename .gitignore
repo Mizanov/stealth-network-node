@@ -39,3 +39,4 @@ wheels/
 # User generated files
 users/
 *.txt
+!requirements.txt
