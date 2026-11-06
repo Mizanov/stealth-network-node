@@ -46,6 +46,14 @@ from subscription_manager import (
     sync_subscriptions_from_config,
     SubscriptionError
 )
+from xray_manager import (
+    load_xray_config,
+    list_users_from_xray,
+    add_user_to_xray,
+    delete_user_from_xray,
+    atomic_modify_xray_config,
+    XrayConfigError
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -92,6 +100,15 @@ WWW_DIR = os.getenv("SUBS_DIR", f"/var/www/{SUBS_PATH}").strip()
 VLESS_TEMPLATE = os.getenv("VLESS_TEMPLATE", "/opt/incy-bot/template-vless.json").strip()
 TROJAN_TEMPLATE = os.getenv("TROJAN_TEMPLATE", "/opt/incy-bot/template-trj.json").strip()
 SINGBOX_CONTROL = os.getenv("SINGBOX_CONTROL_BIN", "/usr/local/bin/singbox-control").strip()
+
+# Dual-transport modern VPN: Xray REALITY & XHTTP settings
+REALITY_PORT = int(os.getenv("REALITY_PORT", "8443").strip())
+XHTTP_PORT = int(os.getenv("XHTTP_PORT", "8444").strip())
+REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "").strip()
+REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "").strip()
+REALITY_SNI = os.getenv("REALITY_SNI", "dl.google.com").strip()
+XHTTP_PATH = os.getenv("XHTTP_PATH", "xhttp").strip()
+XRAY_CONFIG_JSON = os.getenv("XRAY_CONFIG_JSON", "/etc/xray/config.json").strip()
 
 if not TOKEN:
     logger.error("FATAL: TELEGRAM_BOT_TOKEN environment variable is not set!")
@@ -189,6 +206,26 @@ def create_user_singbox(username: str) -> Optional[dict]:
         logger.error(f"Unexpected error in create_user_singbox: {e}", exc_info=True)
         return {"error": str(e)}
 
+    # Synchronize with Xray-core (VLESS REALITY + Vision / XHTTP)
+    if os.path.exists(XRAY_CONFIG_JSON):
+        try:
+            atomic_modify_xray_config(
+                mutation_fn=lambda cfg: add_user_to_xray(cfg, valid_username, new_uuid),
+                config_path=XRAY_CONFIG_JSON,
+                control_runner=run_privileged_control
+            )
+        except Exception as xe:
+            logger.error(f"Failed to add user {valid_username} to Xray: {xe}")
+            try:
+                delete_user_from_config(
+                    username=valid_username,
+                    config_path=CONFIG_JSON,
+                    control_runner=run_privileged_control
+                )
+            except Exception:
+                pass
+            return {"error": f"Ошибка конфигурации Xray: {xe}"}
+
     try:
         sub_info = create_or_update_subscription(
             username=valid_username,
@@ -199,6 +236,12 @@ def create_user_singbox(username: str) -> Optional[dict]:
             vless_path=VLESS_PATH,
             trojan_path=TROJAN_PATH,
             www_dir=WWW_DIR,
+            reality_port=REALITY_PORT,
+            xhttp_port=XHTTP_PORT,
+            reality_public_key=REALITY_PUBLIC_KEY,
+            reality_short_id=REALITY_SHORT_ID,
+            reality_sni=REALITY_SNI,
+            xhttp_path=XHTTP_PATH,
             vless_template=VLESS_TEMPLATE,
             trojan_template=TROJAN_TEMPLATE
         )
@@ -211,6 +254,9 @@ def create_user_singbox(username: str) -> Optional[dict]:
             "singbox_json_url": sub_info["singbox_json_url"],
             "incy_deeplink": sub_info["deeplink"],
             "vless_link": sub_info["vless_link"],
+            "vless_reality_link": sub_info.get("vless_reality_link", ""),
+            "vless_xhttp_link": sub_info.get("vless_xhttp_link", ""),
+            "vless_ws_link": sub_info.get("vless_ws_link", ""),
             "trojan_link": sub_info["trojan_link"]
         }
     except Exception as e:
@@ -235,6 +281,17 @@ def delete_user_singbox(username: str) -> bool:
     except Exception as e:
         logger.error(f"Error deleting user {username}: {e}")
         return False
+
+    # Synchronize deletion with Xray-core
+    if os.path.exists(XRAY_CONFIG_JSON):
+        try:
+            atomic_modify_xray_config(
+                mutation_fn=lambda cfg: delete_user_from_xray(cfg, valid_username),
+                config_path=XRAY_CONFIG_JSON,
+                control_runner=run_privileged_control
+            )
+        except Exception as xe:
+            logger.error(f"Failed to delete user {valid_username} from Xray: {xe}")
 
     # Revoke secure subscription token and cleanup files
     revoke_subscription(valid_username, www_dir=WWW_DIR)
@@ -303,22 +360,40 @@ async def process_new_user(update: Update, username: str):
         return
 
     vless_link = res["vless_link"]
+    reality_link = res.get("vless_reality_link", "")
+    xhttp_link = res.get("vless_xhttp_link", "")
     incy_sub_url = res["incy_sub_url"]
     singbox_json_url = res["singbox_json_url"]
     incy_deeplink = res["incy_deeplink"]
 
-    caption = (
-        f"✅ **Ключ успешно создан!**\n\n"
-        f"👤 **Пользователь:** `{username}`\n"
-        f"🔑 **UUID:** `{res['uuid']}`\n\n"
-        f"📋 **1. Ссылка на ПОДПИСКУ (Incy / Happ / V2Ray / Sing-Box):**\n"
-        f"`{incy_sub_url}`\n\n"
-        f"⚡ **2. Прямая VLESS ссылка (нажмите для копирования):**\n"
-        f"`{vless_link}`\n\n"
-        f"📦 **3. Конфиг Sing-Box JSON:**\n"
-        f"`{singbox_json_url}`\n\n"
-        f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код в приложении (Incy, Happ, v2rayNG, Sing-Box)!*"
-    )
+    if reality_link:
+        caption = (
+            f"✅ **Ключ успешно создан!**\n\n"
+            f"👤 **Пользователь:** `{username}`\n"
+            f"🔑 **UUID:** `{res['uuid']}`\n\n"
+            f"📋 **1. Универсальная подписка (все протоколы):**\n"
+            f"`{incy_sub_url}`\n\n"
+            f"⚡ **2. [Основной] VLESS + REALITY + Vision (TCP):**\n"
+            f"`{reality_link}`\n\n"
+            f"🛡️ **3. [Резерв] VLESS + XHTTP + REALITY:**\n"
+            f"`{xhttp_link}`\n\n"
+            f"📦 **4. Конфиг Sing-Box JSON:**\n"
+            f"`{singbox_json_url}`\n\n"
+            f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код для моментального подключения!*"
+        )
+    else:
+        caption = (
+            f"✅ **Ключ успешно создан!**\n\n"
+            f"👤 **Пользователь:** `{username}`\n"
+            f"🔑 **UUID:** `{res['uuid']}`\n\n"
+            f"📋 **1. Ссылка на ПОДПИСКУ (Incy / Happ / V2Ray / Sing-Box):**\n"
+            f"`{incy_sub_url}`\n\n"
+            f"⚡ **2. Прямая VLESS ссылка (нажмите для копирования):**\n"
+            f"`{vless_link}`\n\n"
+            f"📦 **3. Конфиг Sing-Box JSON:**\n"
+            f"`{singbox_json_url}`\n\n"
+            f"💡 *Скопируйте ссылку подписки или отсканируйте QR-код в приложении (Incy, Happ, v2rayNG, Sing-Box)!*"
+        )
 
     keyboard = [
         [InlineKeyboardButton("🌐 Открыть подписку", url=incy_sub_url)],
@@ -327,8 +402,9 @@ async def process_new_user(update: Update, username: str):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # QR encodes direct VLESS URI for 1-tap instant camera import
-    qr_img = generate_qr(vless_link)
+    # QR encodes primary connection URI for 1-tap instant camera import
+    primary_qr_link = reality_link if reality_link else vless_link
+    qr_img = generate_qr(primary_qr_link)
 
     await update.message.reply_photo(
         photo=qr_img,
@@ -412,12 +488,14 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     df_r = subprocess.run(["df", "-h", "/"], capture_output=True, text=True)
 
     sb_st = get_svc_status("sing-box")
+    xr_st = get_svc_status("xray")
     ng_st = get_svc_status("nginx")
     wp_st = get_docker_status("tgweb-proxy")
 
     msg = (
         "📊 **Статус сервера:**\n\n"
         f"📦 **Sing-Box:** {sb_st}\n"
+        f"⚡ **Xray-Core (REALITY/XHTTP):** {xr_st}\n"
         f"🌐 **Nginx:** {ng_st}\n"
         f"✈️ **Telegram Web Proxy:** {wp_st}\n\n"
         f"💾 **Диск:**\n```{df_r.stdout.strip()}```\n\n"
@@ -479,6 +557,12 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 vless_path=VLESS_PATH,
                 trojan_path=TROJAN_PATH,
                 www_dir=WWW_DIR,
+                reality_port=REALITY_PORT,
+                xhttp_port=XHTTP_PORT,
+                reality_public_key=REALITY_PUBLIC_KEY,
+                reality_short_id=REALITY_SHORT_ID,
+                reality_sni=REALITY_SNI,
+                xhttp_path=XHTTP_PATH,
                 vless_template=VLESS_TEMPLATE,
                 trojan_template=TROJAN_TEMPLATE,
                 config_path=CONFIG_JSON
@@ -534,6 +618,12 @@ def main():
             vless_path=VLESS_PATH,
             trojan_path=TROJAN_PATH,
             www_dir=WWW_DIR,
+            reality_port=REALITY_PORT,
+            xhttp_port=XHTTP_PORT,
+            reality_public_key=REALITY_PUBLIC_KEY,
+            reality_short_id=REALITY_SHORT_ID,
+            reality_sni=REALITY_SNI,
+            xhttp_path=XHTTP_PATH,
             vless_template=VLESS_TEMPLATE,
             trojan_template=TROJAN_TEMPLATE
         )

@@ -1,4 +1,4 @@
-# Incy-Bot restricted singbox management privileges
+# Incy-Bot restricted singbox and xray management privileges
 Defaults:incy-bot !requiretty
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control check /etc/sing-box/*
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control check /tmp/singbox_*
@@ -6,3 +6,8 @@ incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control reload
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control rollback
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control status
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control tgproxy-link
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-check /etc/xray/*
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-check /tmp/xray_*
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-reload
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-rollback
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-status

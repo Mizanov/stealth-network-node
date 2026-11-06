@@ -51,14 +51,14 @@ case "$ACTION" in
             python3 -c "
 import json, sys
 try:
-    with open('$REAL_PATH', 'r', encoding='utf-8') as f:
+    with open(sys.argv[1], 'r', encoding='utf-8') as f:
         data = json.load(f)
     if not isinstance(data, dict) or 'inbounds' not in data:
         sys.exit(1)
     sys.exit(0)
 except Exception:
     sys.exit(1)
-" || { echo "ERROR: Configuration validation failed for '$REAL_PATH'" >&2; exit 1; }
+" "$REAL_PATH" || { echo "ERROR: Configuration validation failed for '$REAL_PATH'" >&2; exit 1; }
             exit 0
         fi
         ;;
@@ -102,8 +102,86 @@ except Exception:
         exec /usr/bin/docker exec tgweb-proxy show-link
         ;;
 
+    xray-check)
+        TARGET="${2:-}"
+        if [ -z "$TARGET" ]; then
+            echo "ERROR: Missing target path for xray configuration check" >&2
+            exit 1
+        fi
+
+        if [ ! -f "$TARGET" ]; then
+            echo "ERROR: Target file '$TARGET' does not exist or is not a regular file" >&2
+            exit 1
+        fi
+
+        REAL_PATH=$(readlink -f "$TARGET" 2>/dev/null || realpath "$TARGET" 2>/dev/null || true)
+        if [ -z "$REAL_PATH" ]; then
+            echo "ERROR: Target path could not be resolved canonically" >&2
+            exit 1
+        fi
+
+        # Whitelist: only /etc/xray/* or /tmp/xray_* (or /private/tmp/xray_* on Darwin)
+        if [[ "$REAL_PATH" != /etc/xray/* && "$REAL_PATH" != /tmp/xray_* && "$REAL_PATH" != /private/tmp/xray_* ]]; then
+            echo "ERROR: Target path '$REAL_PATH' is outside allowed directories" >&2
+            exit 1
+        fi
+
+        XRAY_BIN="${XRAY_BIN:-$(command -v xray 2>/dev/null || echo "/usr/local/bin/xray")}"
+        if [ -x "$XRAY_BIN" ]; then
+            exec "$XRAY_BIN" run -test -c "$REAL_PATH"
+        else
+            python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1], 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    if not isinstance(data, dict) or 'inbounds' not in data:
+        sys.exit(1)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" "$REAL_PATH" || { echo "ERROR: Xray configuration validation failed for '$REAL_PATH'" >&2; exit 1; }
+            exit 0
+        fi
+        ;;
+
+    xray-reload)
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" reload xray.service 2>/dev/null || exec "$SYSTEMCTL_BIN" restart xray.service
+        else
+            exit 0
+        fi
+        ;;
+
+    xray-status)
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" is-active xray.service
+        else
+            exit 0
+        fi
+        ;;
+
+    xray-rollback)
+        BACKUP_FILE="${XRAY_BACKUP_FILE:-/etc/xray/config.json.bak}"
+        CONFIG_FILE="${XRAY_CONFIG_FILE:-/etc/xray/config.json}"
+        if [ ! -f "$BACKUP_FILE" ]; then
+            echo "ERROR: Backup file '$BACKUP_FILE' does not exist" >&2
+            exit 1
+        fi
+        cp -f "$BACKUP_FILE" "$CONFIG_FILE"
+        chmod 660 "$CONFIG_FILE"
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" restart xray.service
+        else
+            exit 0
+        fi
+        ;;
+
     *)
-        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link" >&2
+        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link, xray-check, xray-reload, xray-status, xray-rollback" >&2
         exit 1
         ;;
 esac

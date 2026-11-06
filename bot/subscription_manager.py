@@ -92,6 +92,12 @@ def create_or_update_subscription(
     vless_path: str,
     trojan_path: str,
     www_dir: str,
+    reality_port: int = 8443,
+    xhttp_port: int = 8444,
+    reality_public_key: str = "",
+    reality_short_id: str = "",
+    reality_sni: str = "dl.google.com",
+    xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
     registry_path: str = DEFAULT_REGISTRY_PATH,
@@ -100,6 +106,10 @@ def create_or_update_subscription(
     """
     Creates or updates subscription files using a secure token.
     Cleans up any previous tokenized files for this user.
+    Supports dual-transport modern VPN:
+    - Primary: VLESS + REALITY + Vision (TCP)
+    - Backup: VLESS + XHTTP + REALITY
+    - Legacy: VLESS WS + TLS & Trojan WS + TLS
     """
     registry, lock_fd = _lock_and_load_registry(registry_path, lock_path)
     try:
@@ -114,7 +124,37 @@ def create_or_update_subscription(
         # Build subscription links
         vless_link = f"vless://{vless_uuid}@{domain}:443?security=tls&encryption=none&type=ws&path=%2F{vless_path}#{domain}-VLESS-{username}"
         trojan_link = f"trojan://{trojan_pass}@{domain}:443?security=tls&type=ws&path=%2F{trojan_path}#{domain}-Trojan-{username}"
-        sub_body = f"{vless_link}\n{trojan_link}\n"
+
+        vless_reality_link = ""
+        vless_xhttp_link = ""
+        vless_ws_link = vless_link
+        trojan_ws_link = trojan_link
+
+        if reality_public_key:
+            vless_reality_link = (
+                f"vless://{vless_uuid}@{domain}:{reality_port}?"
+                f"security=reality&encryption=none&pbk={reality_public_key}&"
+                f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
+                f"sni={reality_sni}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
+            )
+            vless_xhttp_link = (
+                f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
+                f"security=reality&encryption=none&pbk={reality_public_key}&"
+                f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
+                f"sni={reality_sni}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
+            )
+            vless_ws_link = (
+                f"vless://{vless_uuid}@{domain}:443?"
+                f"security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
+            )
+            trojan_ws_link = (
+                f"trojan://{trojan_pass}@{domain}:443?"
+                f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
+            )
+            sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
+        else:
+            sub_body = f"{vless_link}\n{trojan_link}\n"
+
         sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
 
         os.makedirs(www_dir, exist_ok=True)
@@ -132,7 +172,7 @@ def create_or_update_subscription(
                 with open(vless_template, "r", encoding="utf-8") as f:
                     vless_client = json.load(f)
                 for ob in vless_client.get("outbounds", []):
-                    if ob.get("tag") == "proxy":
+                    if ob.get("type") == "vless" or (ob.get("tag") == "proxy" and ob.get("type") != "selector"):
                         ob["uuid"] = vless_uuid
                 with open(vless_json_path, "w", encoding="utf-8") as f:
                     json.dump(vless_client, f, indent=2, ensure_ascii=False)
@@ -175,8 +215,11 @@ def create_or_update_subscription(
             "sub_url": sub_url,
             "singbox_json_url": singbox_json_url,
             "deeplink": deeplink,
-            "vless_link": vless_link,
-            "trojan_link": trojan_link
+            "vless_link": vless_reality_link if reality_public_key else vless_link,
+            "vless_reality_link": vless_reality_link,
+            "vless_xhttp_link": vless_xhttp_link,
+            "vless_ws_link": vless_ws_link,
+            "trojan_link": trojan_ws_link
         }
     except Exception:
         try:
@@ -232,6 +275,12 @@ def rotate_subscription_token(
     vless_path: str,
     trojan_path: str,
     www_dir: str,
+    reality_port: int = 8443,
+    xhttp_port: int = 8444,
+    reality_public_key: str = "",
+    reality_short_id: str = "",
+    reality_sni: str = "dl.google.com",
+    xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
     config_path: Optional[str] = None,
@@ -289,6 +338,12 @@ def rotate_subscription_token(
         vless_path=vless_path,
         trojan_path=trojan_path,
         www_dir=www_dir,
+        reality_port=reality_port,
+        xhttp_port=xhttp_port,
+        reality_public_key=reality_public_key,
+        reality_short_id=reality_short_id,
+        reality_sni=reality_sni,
+        xhttp_path=xhttp_path,
         vless_template=vless_template,
         trojan_template=trojan_template,
         registry_path=registry_path,
@@ -303,6 +358,12 @@ def sync_subscriptions_from_config(
     vless_path: str,
     trojan_path: str,
     www_dir: str,
+    reality_port: int = 8443,
+    xhttp_port: int = 8444,
+    reality_public_key: str = "",
+    reality_short_id: str = "",
+    reality_sni: str = "dl.google.com",
+    xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
     registry_path: str = DEFAULT_REGISTRY_PATH,
@@ -364,6 +425,12 @@ def sync_subscriptions_from_config(
                 vless_path=vless_path,
                 trojan_path=trojan_path,
                 www_dir=www_dir,
+                reality_port=reality_port,
+                xhttp_port=xhttp_port,
+                reality_public_key=reality_public_key,
+                reality_short_id=reality_short_id,
+                reality_sni=reality_sni,
+                xhttp_path=xhttp_path,
                 vless_template=vless_template,
                 trojan_template=trojan_template,
                 registry_path=registry_path,

@@ -1,0 +1,89 @@
+{
+  "log": {
+    "loglevel": "warning"
+  },
+  "inbounds": [
+    {
+      "tag": "vless-reality-vision-in",
+      "port": {{REALITY_PORT}},
+      "listen": "0.0.0.0",
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    },
+    {
+      "tag": "vless-reality-xhttp-in",
+      "port": {{XHTTP_PORT}},
+      "listen": "0.0.0.0",
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "xhttp",
+        "xhttpSettings": {
+          "path": "/{{XHTTP_PATH}}",
+          "mode": "auto"
+        },
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "dest": "{{REALITY_DEST}}",
+          "xver": 0,
+          "serverNames": [
+            "{{REALITY_SNI}}"
+          ],
+          "privateKey": "{{REALITY_PRIVATE_KEY}}",
+          "shortIds": [
+            "{{REALITY_SHORT_ID}}"
+          ]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": [
+          "http",
+          "tls",
+          "quic"
+        ]
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct"
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "block"
+    }
+  ]
+}

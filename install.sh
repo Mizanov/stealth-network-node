@@ -101,7 +101,7 @@ fi
 info "Updating repositories and installing base packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip docker.io
+apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip docker.io unzip
 
 # Enable Docker with log rotation limits (prevent disk saturation)
 mkdir -p /etc/docker
@@ -264,6 +264,71 @@ if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
     docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
 fi
 
+# 11.5 Setup Xray-Core (VLESS REALITY Vision & XHTTP)
+info "Setting up Xray-Core for high-speed REALITY & anti-DPI XHTTP..."
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64) XRAY_ARCH="64" ;;
+    aarch64|arm64) XRAY_ARCH="arm64-v8a" ;;
+    *) XRAY_ARCH="64" ;;
+esac
+
+if [ ! -x /usr/local/bin/xray ]; then
+    info "Installing Xray binary..."
+    XRAY_TMP=$(mktemp -d)
+    curl -sSL "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XRAY_ARCH}.zip" -o "$XRAY_TMP/xray.zip" || \
+    curl -sSL "https://github.com/XTLS/Xray-core/releases/download/v24.11.30/Xray-linux-${XRAY_ARCH}.zip" -o "$XRAY_TMP/xray.zip"
+    unzip -q -o "$XRAY_TMP/xray.zip" xray -d /usr/local/bin/
+    chmod 755 /usr/local/bin/xray
+    rm -rf "$XRAY_TMP"
+    ok "Xray-core binary installed."
+fi
+
+# Generate REALITY keys
+KEYS=$(/usr/local/bin/xray x25519 2>/dev/null || true)
+REALITY_PRIVATE_KEY=$(echo "$KEYS" | grep -i 'Private key:' | awk '{print $3}')
+REALITY_PUBLIC_KEY=$(echo "$KEYS" | grep -i 'Public key:' | awk '{print $3}')
+REALITY_SHORT_ID=$(openssl rand -hex 8)
+REALITY_PORT=8443
+XHTTP_PORT=8444
+REALITY_DEST="dl.google.com:443"
+REALITY_SNI="dl.google.com"
+XHTTP_PATH="xhttp"
+
+mkdir -p /etc/xray
+sed -e "s|{{REALITY_PORT}}|$REALITY_PORT|g" \
+    -e "s|{{XHTTP_PORT}}|$XHTTP_PORT|g" \
+    -e "s|{{REALITY_DEST}}|$REALITY_DEST|g" \
+    -e "s|{{REALITY_SNI}}|$REALITY_SNI|g" \
+    -e "s|{{XHTTP_PATH}}|$XHTTP_PATH|g" \
+    -e "s|{{REALITY_PRIVATE_KEY}}|$REALITY_PRIVATE_KEY|g" \
+    -e "s|{{REALITY_SHORT_ID}}|$REALITY_SHORT_ID|g" \
+    "$SCRIPT_DIR/config/xray/config.json.template" > /etc/xray/config.json
+
+# Add initial user to Xray config
+python3 -c "
+import json
+try:
+    with open('/etc/xray/config.json', 'r') as f:
+        cfg = json.load(f)
+    for ib in cfg.get('inbounds', []):
+        clients = ib.setdefault('settings', {}).setdefault('clients', [])
+        if ib.get('tag') == 'vless-reality-vision-in':
+            clients.append({'id': '$FIRST_USER_UUID', 'flow': 'xtls-rprx-vision', 'email': '$FIRST_USER_NAME'})
+        elif ib.get('tag') == 'vless-reality-xhttp-in':
+            clients.append({'id': '$FIRST_USER_UUID', 'email': '$FIRST_USER_NAME'})
+    with open('/etc/xray/config.json', 'w') as f:
+        json.dump(cfg, f, indent=2)
+except Exception as e:
+    print('Warning: could not add initial user to Xray:', e)
+"
+
+# Install Xray systemd service
+cp "$SCRIPT_DIR/config/xray/xray.service" /etc/systemd/system/xray.service
+systemctl daemon-reload
+systemctl enable --now xray.service
+systemctl restart xray.service
+
 # 12. Setup Privileged Helper, Permissions & Telegram Bot
 info "Setting up Telegram Bot and restricted privileges..."
 
@@ -294,6 +359,10 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    -e "s|{{REALITY_SNI}}|$REALITY_SNI|g" \
+    -e "s|{{REALITY_PUBLIC_KEY}}|$REALITY_PUBLIC_KEY|g" \
+    -e "s|{{REALITY_SHORT_ID}}|$REALITY_SHORT_ID|g" \
+    -e "s|8443|$REALITY_PORT|g" \
     "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
 
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
@@ -305,13 +374,19 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 # Bot files & Venv
-cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" "$SCRIPT_DIR/bot/config_manager.py" "$SCRIPT_DIR/bot/subscription_manager.py" /opt/incy-bot/
+cp "$SCRIPT_DIR/bot/bot.py" \
+   "$SCRIPT_DIR/bot/auth.py" \
+   "$SCRIPT_DIR/bot/config_manager.py" \
+   "$SCRIPT_DIR/bot/subscription_manager.py" \
+   "$SCRIPT_DIR/bot/xray_manager.py" \
+   /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
 
-printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\n" \
-    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" > /opt/incy-bot/.env
+printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\nREALITY_PORT=%s\nXHTTP_PORT=%s\nREALITY_DEST=%s\nREALITY_SNI=%s\nXHTTP_PATH=%s\nREALITY_PRIVATE_KEY=%s\nREALITY_PUBLIC_KEY=%s\nREALITY_SHORT_ID=%s\n" \
+    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" \
+    "$REALITY_PORT" "$XHTTP_PORT" "$REALITY_DEST" "$REALITY_SNI" "$XHTTP_PATH" "$REALITY_PRIVATE_KEY" "$REALITY_PUBLIC_KEY" "$REALITY_SHORT_ID" > /opt/incy-bot/.env
 
 # Permissions: incy-bot ownership and restricted read for .env
 chown -R incy-bot:incy-bot /opt/incy-bot
@@ -322,12 +397,14 @@ chmod 640 /opt/incy-bot/.env
 chown -R incy-bot:www-data "$WWW_DIR"
 chmod 770 "$WWW_DIR"
 
-# Sing-box directory & config permissions for transactional atomic updates by incy-bot
-mkdir -p /etc/sing-box
-chown root:incy-bot /etc/sing-box
-chmod 775 /etc/sing-box
+# Sing-box & Xray directory & config permissions for transactional atomic updates by incy-bot
+mkdir -p /etc/sing-box /etc/xray
+chown root:incy-bot /etc/sing-box /etc/xray
+chmod 775 /etc/sing-box /etc/xray
 chown sing-box:incy-bot /etc/sing-box/config.json 2>/dev/null || chown root:incy-bot /etc/sing-box/config.json 2>/dev/null || true
 chmod 660 /etc/sing-box/config.json 2>/dev/null || true
+chown root:incy-bot /etc/xray/config.json 2>/dev/null || true
+chmod 660 /etc/xray/config.json 2>/dev/null || true
 
 # Systemd service deployment & verification
 cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service
@@ -342,9 +419,12 @@ systemctl restart incy-bot.service
 
 # Generate initial user cryptographically secure subscription token & files
 FIRST_USER_TOKEN=$(openssl rand -hex 16)
-VLESS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#${MAIN_DOMAIN}-VLESS-${FIRST_USER_NAME}"
-TROJAN_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#${MAIN_DOMAIN}-Trojan-${FIRST_USER_NAME}"
-echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+VLESS_REALITY_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${REALITY_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#⚡ [Основной] VLESS-REALITY-Vision"
+VLESS_XHTTP_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${XHTTP_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F${XHTTP_PATH}&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
+VLESS_WS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#🌐 [WS] VLESS-WS-TLS"
+TROJAN_WS_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#🔒 [WS] Trojan-WS-TLS"
+
+echo -e "${VLESS_REALITY_LINK}\n${VLESS_XHTTP_LINK}\n${VLESS_WS_LINK}\n${TROJAN_WS_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
 chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
 
 cat <<EOF > /opt/incy-bot/subscriptions.json
@@ -392,9 +472,10 @@ echo -e "🌐 ${BOLD}Telegram Web Proxy (tproxy-server):${NC}"
 echo "   Ссылка для подключения: $TG_PROXY_LINK"
 echo ""
 echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / SFM):${NC}"
-echo "   • Пользователь: ${FIRST_USER_NAME}"
-echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_TOKEN}.txt"
-echo "   • Прямой VLESS: ${VLESS_LINK}"
+echo "   • Пользователь:       ${FIRST_USER_NAME}"
+echo "   • Универсал.подписка: https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_TOKEN}.txt"
+echo "   • Основной REALITY:   ${VLESS_REALITY_LINK}"
+echo "   • Резервный XHTTP:    ${VLESS_XHTTP_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"
 echo "   • SSL Сертификаты: Автоматическое продление через Certbot (Webroot, 0ms downtime)"
@@ -402,7 +483,7 @@ echo "   • Стелс-режим Nginx: Сброс соединений по I
 echo "   • Защита от брутфорса: Fail2ban + UFW (блокировка на 24ч при 5 попытках)"
 echo "   • SSH Защита: Вход по паролю ОТКЛЮЧЕН (только ed25519/RSA ключи)"
 echo "   • Ядро Linux: SYN cookies, защита от IP-спуфинга, TCP BBR"
-echo "   • Фаервол: UFW активен (только порты 22, 80, 443; все сервисы на 127.0.0.1)"
+echo "   • Фаервол: UFW активен (порты 22, 80, 443, 8443, 8444; все сервисы на 127.0.0.1)"
 echo "   • Автообновления: unattended-upgrades для патчей безопасности"
 echo "   • Ротация логов Docker: Ограничение до 30MB на контейнер"
 echo "   • Резервное копирование: Автоматический снапшот конфигураций ежедневно в 03:00"

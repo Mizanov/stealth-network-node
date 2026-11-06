@@ -68,6 +68,8 @@ else
     ufw allow 22/tcp comment 'SSH'
     ufw allow 80/tcp comment 'HTTP'
     ufw allow 443/tcp comment 'HTTPS'
+    ufw allow 8443/tcp comment 'Xray REALITY Vision'
+    ufw allow 8444/tcp comment 'Xray REALITY XHTTP'
     ufw --force enable
 fi
 ok "UFW firewall configured."

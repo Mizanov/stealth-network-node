@@ -182,12 +182,37 @@
   ],
   "outbounds": [
     {
-      "type": "direct",
-      "tag": "direct"
+      "type": "selector",
+      "tag": "proxy",
+      "outbounds": [
+        "vless-reality",
+        "vless-ws"
+      ],
+      "default": "vless-reality"
     },
     {
       "type": "vless",
-      "tag": "proxy",
+      "tag": "vless-reality",
+      "server": "{{DOMAIN}}",
+      "server_port": 8443,
+      "flow": "xtls-rprx-vision",
+      "tls": {
+        "enabled": true,
+        "server_name": "{{REALITY_SNI}}",
+        "reality": {
+          "enabled": true,
+          "public_key": "{{REALITY_PUBLIC_KEY}}",
+          "short_id": "{{REALITY_SHORT_ID}}"
+        },
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "vless-ws",
       "server": "{{DOMAIN}}",
       "server_port": 443,
       "tls": {
@@ -202,6 +227,10 @@
         "enabled": true,
         "padding": true
       }
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
     }
   ],
   "http_clients": [

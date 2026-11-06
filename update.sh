@@ -137,12 +137,129 @@ if [ -f "$SCRIPT_DIR/scripts/download-rulesets.sh" ]; then
     ok "Бинарные правила SRS успешно обновлены и проверены."
 fi
 
+# 7.5 Setup & Upgrade Xray-Core (VLESS REALITY & XHTTP Dual-Transport)
+info "Настройка Xray-Core для высокоскоростного REALITY и анти-DPI XHTTP..."
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64) XRAY_ARCH="64" ;;
+    aarch64|arm64) XRAY_ARCH="arm64-v8a" ;;
+    *) XRAY_ARCH="64" ;;
+esac
+
+if [ ! -x /usr/local/bin/xray ]; then
+    info "Установка бинарного файла Xray-core..."
+    apt-get update -y >/dev/null 2>&1 || true
+    apt-get install -y unzip curl >/dev/null 2>&1 || true
+    XRAY_TMP=$(mktemp -d)
+    curl -sSL "https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-${XRAY_ARCH}.zip" -o "$XRAY_TMP/xray.zip" || \
+    curl -sSL "https://github.com/XTLS/Xray-core/releases/download/v24.11.30/Xray-linux-${XRAY_ARCH}.zip" -o "$XRAY_TMP/xray.zip"
+    unzip -q -o "$XRAY_TMP/xray.zip" xray -d /usr/local/bin/
+    chmod 755 /usr/local/bin/xray
+    rm -rf "$XRAY_TMP"
+    ok "Xray-core установлен в /usr/local/bin/xray."
+fi
+
+# Generate or load REALITY keys
+if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
+    info "Генерация ключей Xray REALITY (x25519)..."
+    KEYS=$(/usr/local/bin/xray x25519 2>/dev/null || true)
+    REALITY_PRIVATE_KEY=$(echo "$KEYS" | grep -i 'Private key:' | awk '{print $3}')
+    REALITY_PUBLIC_KEY=$(echo "$KEYS" | grep -i 'Public key:' | awk '{print $3}')
+    REALITY_SHORT_ID=$(openssl rand -hex 8)
+    REALITY_PORT="${REALITY_PORT:-8443}"
+    XHTTP_PORT="${XHTTP_PORT:-8444}"
+    REALITY_DEST="${REALITY_DEST:-dl.google.com:443}"
+    REALITY_SNI="${REALITY_SNI:-dl.google.com}"
+    XHTTP_PATH="${XHTTP_PATH:-xhttp}"
+
+    {
+        echo "REALITY_PORT=$REALITY_PORT"
+        echo "XHTTP_PORT=$XHTTP_PORT"
+        echo "REALITY_DEST=$REALITY_DEST"
+        echo "REALITY_SNI=$REALITY_SNI"
+        echo "XHTTP_PATH=$XHTTP_PATH"
+        echo "REALITY_PRIVATE_KEY=$REALITY_PRIVATE_KEY"
+        echo "REALITY_PUBLIC_KEY=$REALITY_PUBLIC_KEY"
+        echo "REALITY_SHORT_ID=$REALITY_SHORT_ID"
+    } >> "$ENV_FILE"
+    ok "Ключи REALITY сгенерированы и сохранены в $ENV_FILE."
+fi
+
+mkdir -p /etc/xray
+if [ ! -f /etc/xray/config.json ]; then
+    info "Генерация базового файла конфигурации /etc/xray/config.json..."
+    sed -e "s|{{REALITY_PORT}}|${REALITY_PORT:-8443}|g" \
+        -e "s|{{XHTTP_PORT}}|${XHTTP_PORT:-8444}|g" \
+        -e "s|{{REALITY_DEST}}|${REALITY_DEST:-dl.google.com:443}|g" \
+        -e "s|{{REALITY_SNI}}|${REALITY_SNI:-dl.google.com}|g" \
+        -e "s|{{XHTTP_PATH}}|${XHTTP_PATH:-xhttp}|g" \
+        -e "s|{{REALITY_PRIVATE_KEY}}|$REALITY_PRIVATE_KEY|g" \
+        -e "s|{{REALITY_SHORT_ID}}|$REALITY_SHORT_ID|g" \
+        "$SCRIPT_DIR/config/xray/config.json.template" > /etc/xray/config.json
+fi
+
+# Synchronize existing Sing-Box users into Xray
+if [ -f /etc/sing-box/config.json ] && [ -f /etc/xray/config.json ]; then
+    python3 -c "
+import json
+try:
+    with open('/etc/sing-box/config.json', 'r') as f:
+        sb = json.load(f)
+    with open('/etc/xray/config.json', 'r') as f:
+        xr = json.load(f)
+
+    users = {}
+    for ib in sb.get('inbounds', []):
+        if ib.get('type') == 'vless' or ib.get('tag') == 'vless-in':
+            for u in ib.get('users', []):
+                if u.get('name') and u.get('uuid'):
+                    users[u['name']] = u['uuid']
+
+    for ib in xr.get('inbounds', []):
+        tag = ib.get('tag', '')
+        clients = ib.setdefault('settings', {}).setdefault('clients', [])
+        for uname, uuid in users.items():
+            if not any(c.get('email') == uname or c.get('id') == uuid for c in clients):
+                if tag == 'vless-reality-vision-in':
+                    clients.append({'id': uuid, 'flow': 'xtls-rprx-vision', 'email': uname})
+                elif tag == 'vless-reality-xhttp-in':
+                    clients.append({'id': uuid, 'email': uname})
+
+    with open('/etc/xray/config.json', 'w') as f:
+        json.dump(xr, f, indent=2)
+except Exception as e:
+    print('Sync warning:', e)
+" || true
+fi
+
+# Setup Xray permissions
+chown -R root:incy-bot /etc/xray
+chmod 775 /etc/xray
+chmod 660 /etc/xray/config.json 2>/dev/null || true
+
+# Install & restart Xray service
+cp "$SCRIPT_DIR/config/xray/xray.service" /etc/systemd/system/xray.service
+systemctl daemon-reload
+systemctl enable xray.service >/dev/null 2>&1 || true
+systemctl restart xray.service
+
+# Configure UFW rules for REALITY ports
+if command -v ufw >/dev/null 2>&1; then
+    ufw allow "${REALITY_PORT:-8443}/tcp" comment 'Xray REALITY Vision' >/dev/null 2>&1 || true
+    ufw allow "${XHTTP_PORT:-8444}/tcp" comment 'Xray REALITY XHTTP' >/dev/null 2>&1 || true
+fi
+ok "Служба Xray-Core настроена и запущена."
+
 # 8. Update Client Templates
 info "Обновление шаблонов профилей клиентов..."
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    -e "s|{{REALITY_SNI}}|${REALITY_SNI:-dl.google.com}|g" \
+    -e "s|{{REALITY_PUBLIC_KEY}}|${REALITY_PUBLIC_KEY:-}|g" \
+    -e "s|{{REALITY_SHORT_ID}}|${REALITY_SHORT_ID:-}|g" \
+    -e "s|8443|${REALITY_PORT:-8443}|g" \
     "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
 
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
@@ -153,7 +270,7 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
 
 chown incy-bot:incy-bot /opt/incy-bot/template-*.json
 chmod 644 /opt/incy-bot/template-*.json
-ok "Шаблоны клиентов обновлены с учётом OR-маршрутизации."
+ok "Шаблоны клиентов обновлены с учётом OR-маршрутизации и REALITY."
 
 # 9. Update Bot Code & Python Dependencies
 info "Обновление кода Telegram-бота..."
@@ -161,6 +278,7 @@ cp "$SCRIPT_DIR/bot/bot.py" \
    "$SCRIPT_DIR/bot/auth.py" \
    "$SCRIPT_DIR/bot/config_manager.py" \
    "$SCRIPT_DIR/bot/subscription_manager.py" \
+   "$SCRIPT_DIR/bot/xray_manager.py" \
    /opt/incy-bot/
 
 if [ -f /opt/incy-bot/venv/bin/pip ]; then
@@ -266,6 +384,7 @@ echo ""
 echo "Статус сервисов:"
 echo "  • Telegram Bot (incy-bot): $(systemctl is-active incy-bot.service)"
 echo "  • Sing-Box Core:           $(systemctl is-active sing-box.service)"
+echo "  • Xray Core (REALITY):     $(systemctl is-active xray.service 2>/dev/null || echo 'inactive')"
 echo "  • Nginx Web Server:        $(systemctl is-active nginx.service)"
 if command -v docker >/dev/null 2>&1; then
 echo "  • Telegram Web Proxy:      $(docker inspect -f '{{.State.Status}}' tgweb-proxy 2>/dev/null || echo 'inactive')"
