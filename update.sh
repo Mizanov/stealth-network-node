@@ -163,8 +163,8 @@ fi
 if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
     info "Генерация ключей Xray REALITY (x25519)..."
     KEYS=$(/usr/local/bin/xray x25519 2>/dev/null || true)
-    REALITY_PRIVATE_KEY=$(echo "$KEYS" | grep -i 'Private key:' | awk '{print $3}')
-    REALITY_PUBLIC_KEY=$(echo "$KEYS" | grep -i 'Public key:' | awk '{print $3}')
+    REALITY_PRIVATE_KEY=$(echo "$KEYS" | awk '/Private/ {print $NF}' || echo "")
+    REALITY_PUBLIC_KEY=$(echo "$KEYS" | awk '/Public/ {print $NF}' || echo "")
     REALITY_SHORT_ID=$(openssl rand -hex 8)
     REALITY_PORT="${REALITY_PORT:-8443}"
     XHTTP_PORT="${XHTTP_PORT:-8444}"
