@@ -189,20 +189,42 @@ if [ -d "$SCRIPT_DIR/site" ]; then
 fi
 chown -R www-data:www-data /var/www/site
 
-info "Downloading routing rulesets..."
-for rs in geoip-ru geosite-ru geosite-category-ads-all; do
-    wget -q -O "$RULESET_DIR/${rs}.srs" "https://raw.githubusercontent.com/A-Zuro/ruleset/main/${rs}.srs" 2>/dev/null || true
-done
+info "Downloading and validating routing rulesets..."
+if [ -f "$SCRIPT_DIR/scripts/download-rulesets.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/download-rulesets.sh" "$RULESET_DIR"
+else
+    error "FATAL: scripts/download-rulesets.sh not found! Aborting."
+fi
 
 # 9. Configure Sing-Box
 info "Deploying Sing-Box configuration..."
 SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me || echo "127.0.0.1")
 
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/sing-box/config.json.template" > /etc/sing-box/config.json
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/sing-box/config.json.template" > /etc/sing-box/config.json
 
 # Inject initial user
-jq ".inbounds[] |= if .tag == "vless-in" then .users = [{"name": "$FIRST_USER_NAME", "uuid": "$FIRST_USER_UUID"}] elif .tag == "trojan-in" then .users = [{"name": "$FIRST_USER_NAME", "password": "$FIRST_USER_PASS"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
+jq ".inbounds[] |= if .tag == \"vless-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"uuid\": \"$FIRST_USER_UUID\"}] elif .tag == \"trojan-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"password\": \"$FIRST_USER_PASS\"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
 mv /tmp/sb_cfg.json /etc/sing-box/config.json
+
+# Verify presence of all mandatory rulesets before starting Sing-Box
+for req_rs in geoip-ru.srs geosite-category-gov-ru.srs geosite-category-ads-all.srs geosite-openai.srs geosite-anthropic.srs geosite-xai.srs; do
+    if [ ! -f "$RULESET_DIR/$req_rs" ]; then
+        error "FATAL: Mandatory ruleset '$RULESET_DIR/$req_rs' is missing! Sing-Box cannot start. Aborting."
+    fi
+done
+
+# Perform pre-flight configuration validation
+if command -v sing-box >/dev/null 2>&1; then
+    info "Verifying Sing-Box configuration validity..."
+    if ! sing-box check -c /etc/sing-box/config.json; then
+        error "FATAL: Sing-Box pre-flight check failed! Aborting."
+    fi
+fi
 
 systemctl daemon-reload
 systemctl enable --now sing-box
