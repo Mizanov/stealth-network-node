@@ -180,8 +180,18 @@ except Exception:
         fi
         ;;
 
+    xray-stats)
+        XRAY_BIN="${XRAY_BIN:-$(command -v xray 2>/dev/null || echo "/usr/local/bin/xray")}"
+        if [ -x "$XRAY_BIN" ]; then
+            exec "$XRAY_BIN" api statsquery --server=127.0.0.1:10085 -pattern "user>>>"
+        else
+            echo "{}"
+            exit 0
+        fi
+        ;;
+
     *)
-        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link, xray-check, xray-reload, xray-status, xray-rollback" >&2
+        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link, xray-check, xray-reload, xray-status, xray-rollback, xray-stats" >&2
         exit 1
         ;;
 esac

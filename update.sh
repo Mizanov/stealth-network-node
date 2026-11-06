@@ -198,16 +198,23 @@ if [ ! -f /etc/xray/config.json ]; then
         "$SCRIPT_DIR/config/xray/config.json.template" > /etc/xray/config.json
 fi
 
-# Synchronize existing Sing-Box users into Xray
+# Synchronize existing Sing-Box users into Xray & ensure stats API configuration
 if [ -f /etc/sing-box/config.json ] && [ -f /etc/xray/config.json ]; then
     python3 -c "
-import json
+import os, sys, json
+sys.path.insert(0, '$SCRIPT_DIR/bot')
+from xray_manager import ensure_xray_stats_config
+
 try:
     with open('/etc/sing-box/config.json', 'r') as f:
         sb = json.load(f)
     with open('/etc/xray/config.json', 'r') as f:
         xr = json.load(f)
 
+    # 1. Ensure Stats API & Policy configuration
+    xr = ensure_xray_stats_config(xr)
+
+    # 2. Sync users
     users = {}
     for ib in sb.get('inbounds', []):
         if ib.get('type') == 'vless' or ib.get('tag') == 'vless-in':
@@ -283,6 +290,7 @@ cp "$SCRIPT_DIR/bot/bot.py" \
    "$SCRIPT_DIR/bot/config_manager.py" \
    "$SCRIPT_DIR/bot/subscription_manager.py" \
    "$SCRIPT_DIR/bot/xray_manager.py" \
+   "$SCRIPT_DIR/bot/stats_manager.py" \
    /opt/incy-bot/
 
 if [ -f /opt/incy-bot/venv/bin/pip ]; then

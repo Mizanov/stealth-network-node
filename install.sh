@@ -379,6 +379,7 @@ cp "$SCRIPT_DIR/bot/bot.py" \
    "$SCRIPT_DIR/bot/config_manager.py" \
    "$SCRIPT_DIR/bot/subscription_manager.py" \
    "$SCRIPT_DIR/bot/xray_manager.py" \
+   "$SCRIPT_DIR/bot/stats_manager.py" \
    /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null

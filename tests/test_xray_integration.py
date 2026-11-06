@@ -27,6 +27,7 @@ from xray_manager import (
     add_user_to_xray,
     delete_user_from_xray,
     atomic_modify_xray_config,
+    ensure_xray_stats_config,
     XrayConfigError,
     XrayValidationError,
     XrayReloadError
@@ -428,6 +429,44 @@ class TestSingboxControlXrayActions(unittest.TestCase):
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    def test_xray_stats_action_exists(self):
+        """xray-stats returns json string output."""
+        res = subprocess.run([self.script_path, "xray-stats"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0)
+        self.assertTrue(res.stdout.strip().startswith("{"))
+
+
+class TestXrayStatsConfig(unittest.TestCase):
+    """Verifies ensure_xray_stats_config properly provisions required stats configuration."""
+
+    def test_ensure_stats_on_minimal_config(self):
+        cfg = {"inbounds": [], "outbounds": []}
+        updated = ensure_xray_stats_config(cfg)
+
+        self.assertIn("stats", updated)
+        self.assertEqual(updated["api"]["tag"], "api")
+        self.assertIn("StatsService", updated["api"]["services"])
+        self.assertTrue(updated["policy"]["levels"]["0"]["statsUserUplink"])
+        self.assertTrue(updated["policy"]["levels"]["0"]["statsUserDownlink"])
+
+        # Check API inbound
+        api_inbounds = [ib for ib in updated["inbounds"] if ib.get("tag") == "api"]
+        self.assertEqual(len(api_inbounds), 1)
+        self.assertEqual(api_inbounds[0]["protocol"], "dokodemo-door")
+        self.assertEqual(api_inbounds[0]["port"], 10085)
+
+        # Check API routing rule
+        api_rules = [r for r in updated["routing"]["rules"] if r.get("outboundTag") == "api"]
+        self.assertEqual(len(api_rules), 1)
+        self.assertIn("api", api_rules[0]["inboundTag"])
+
+    def test_idempotent_stats_config(self):
+        cfg = {"inbounds": [], "outbounds": []}
+        updated1 = ensure_xray_stats_config(cfg)
+        updated2 = ensure_xray_stats_config(updated1)
+        self.assertEqual(len([ib for ib in updated2["inbounds"] if ib.get("tag") == "api"]), 1)
+        self.assertEqual(len([r for r in updated2["routing"]["rules"] if r.get("outboundTag") == "api"]), 1)
+
 
 class TestSudoersXrayPermissions(unittest.TestCase):
     """Verifies that config/sudoers/incy-bot.sudoers covers all xray operations and parses with visudo."""
@@ -442,7 +481,7 @@ class TestSudoersXrayPermissions(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"visudo syntax check failed: {res.stderr}")
 
     def test_xray_actions_in_sudoers(self):
-        """Sudoers must include xray-check, xray-reload, xray-rollback, and xray-status."""
+        """Sudoers must include xray-check, xray-reload, xray-rollback, xray-status, and xray-stats."""
         with open(self.sudoers_file, "r", encoding="utf-8") as f:
             content = f.read()
         self.assertIn("/usr/local/bin/singbox-control xray-check /etc/xray/*", content)
@@ -450,6 +489,7 @@ class TestSudoersXrayPermissions(unittest.TestCase):
         self.assertIn("/usr/local/bin/singbox-control xray-reload", content)
         self.assertIn("/usr/local/bin/singbox-control xray-rollback", content)
         self.assertIn("/usr/local/bin/singbox-control xray-status", content)
+        self.assertIn("/usr/local/bin/singbox-control xray-stats", content)
 
 
 class TestXrayServiceUnit(unittest.TestCase):

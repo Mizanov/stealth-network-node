@@ -112,6 +112,59 @@ def delete_user_from_xray(config_data: Dict[str, Any], username: str) -> Dict[st
     return config_data
 
 
+def ensure_xray_stats_config(config_data: Dict[str, Any], api_port: int = 10085) -> Dict[str, Any]:
+    """
+    Ensures Xray configuration contains stats service, stats policy,
+    API inbound, and routing rules for per-user traffic tracking.
+    """
+    if "stats" not in config_data or not isinstance(config_data["stats"], dict):
+        config_data["stats"] = {}
+
+    api_cfg = config_data.setdefault("api", {})
+    api_cfg["tag"] = "api"
+    services = api_cfg.setdefault("services", [])
+    if "StatsService" not in services:
+        services.append("StatsService")
+
+    policy = config_data.setdefault("policy", {})
+    levels = policy.setdefault("levels", {})
+    lvl0 = levels.setdefault("0", {})
+    lvl0["statsUserUplink"] = True
+    lvl0["statsUserDownlink"] = True
+
+    system = policy.setdefault("system", {})
+    system["statsInboundUplink"] = True
+    system["statsInboundDownlink"] = True
+
+    inbounds = config_data.setdefault("inbounds", [])
+    has_api_inbound = any(ib.get("tag") == "api" for ib in inbounds)
+    if not has_api_inbound:
+        inbounds.insert(0, {
+            "tag": "api",
+            "port": api_port,
+            "listen": "127.0.0.1",
+            "protocol": "dokodemo-door",
+            "settings": {
+                "address": "127.0.0.1"
+            }
+        })
+
+    routing = config_data.setdefault("routing", {})
+    rules = routing.setdefault("rules", [])
+    has_api_rule = any(
+        isinstance(r, dict) and r.get("outboundTag") == "api" and "api" in r.get("inboundTag", [])
+        for r in rules
+    )
+    if not has_api_rule:
+        rules.insert(0, {
+            "inboundTag": ["api"],
+            "outboundTag": "api",
+            "type": "field"
+        })
+
+    return config_data
+
+
 def atomic_modify_xray_config(
     mutation_fn: Callable[[Dict[str, Any]], Dict[str, Any]],
     config_path: str = DEFAULT_XRAY_CONFIG,

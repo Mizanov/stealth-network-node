@@ -52,7 +52,16 @@ from xray_manager import (
     add_user_to_xray,
     delete_user_from_xray,
     atomic_modify_xray_config,
+    ensure_xray_stats_config,
     XrayConfigError
+)
+from stats_manager import (
+    format_bytes,
+    get_user_traffic,
+    get_all_traffic_stats,
+    sync_traffic_stats,
+    reset_user_traffic,
+    remove_user_traffic
 )
 
 logging.basicConfig(
@@ -146,7 +155,8 @@ def reload_singbox():
 def get_keyboard():
     keyboard = [
         ["➕ Создать ключ", "👥 Список ключей"],
-        ["🌐 Telegram Web Proxy", "📊 Статус сервера"]
+        ["📊 Трафик пользователей", "🌐 Telegram Web Proxy"],
+        ["📊 Статус сервера"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
@@ -297,6 +307,12 @@ def delete_user_singbox(username: str) -> bool:
     # Revoke secure subscription token and cleanup files
     revoke_subscription(valid_username, www_dir=WWW_DIR)
 
+    # Clean up traffic statistics for deleted user
+    try:
+        remove_user_traffic(valid_username)
+    except Exception as st_err:
+        logger.debug(f"Could not remove traffic stats for {valid_username}: {st_err}")
+
     # Legacy cleanup if un-tokenized files existed
     for f_name in (f"{valid_username}.txt", f"{valid_username}-VLESS-CLIENT.json", f"{valid_username}-TRJ-CLIENT.json"):
         p = f"{WWW_DIR}/{f_name}"
@@ -310,7 +326,9 @@ def delete_user_singbox(username: str) -> bool:
 
 
 def get_users_list() -> list:
-    return list_users_from_config(config_path=CONFIG_JSON)
+    sb_users = set(list_users_from_config(config_path=CONFIG_JSON))
+    xr_users = set(list_users_from_xray(config_path=XRAY_CONFIG_JSON)) if os.path.exists(XRAY_CONFIG_JSON) else set()
+    return sorted(list(sb_users | xr_users))
 
 
 def generate_qr(data: str) -> io.BytesIO:
@@ -331,7 +349,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Панель управления **Dual-Transport Stealth VPN (Xray REALITY / Sing-Box)** и **Telegram Web Proxy**.\n\n"
         "⚡ **Доступные команды:**\n"
         "• `/new <имя>` — сгенерировать ключ и универсальную подписку\n"
-        "• `/list` — список всех пользователей и ключей\n"
+        "• `/list` — список всех пользователей с трафиком\n"
+        "• `/stats` — сводная статистика трафика по пользователям\n"
         "• `/del <имя>` — удалить пользователя\n"
         "• `/proxy` — ссылки на Telegram Web Proxy\n"
         "• `/status` — статус сервера и служб\n\n"
@@ -448,17 +467,80 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Список пользователей пуст.", reply_markup=get_keyboard())
         return
 
-    msg = f"👥 **Список пользователей Sing-Box ({len(users)}):**\n\n"
+    try:
+        sync_traffic_stats()
+    except Exception as e:
+        logger.warning("Failed to sync traffic stats in list_users_command: %s", e)
+
+    msg = f"👥 **Список пользователей VPN ({len(users)}):**\n\n"
     keyboard = []
     for u in users:
-        msg += f"• `{u}`\n"
+        u_stats = get_user_traffic(u, sync=False)
+        tot_str = u_stats["formatted_total"]
+        dl_str = u_stats["formatted_downlink"]
+        ul_str = u_stats["formatted_uplink"]
+        msg += f"• `{u}` — **{tot_str}** (↓ {dl_str} / ↑ {ul_str})\n"
         keyboard.append([
             InlineKeyboardButton(f"🔗 {u}", callback_data=f"info_{u}"),
             InlineKeyboardButton("🗑 Удалить", callback_data=f"del_{u}")
         ])
 
+    keyboard.append([
+        InlineKeyboardButton("📊 Полная статистика трафика", callback_data="show_stats")
+    ])
+
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+
+
+@admin_required
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    users = get_users_list()
+    stats_data = get_all_traffic_stats(known_users=users, sync=True)
+    srv = stats_data["server_total"]
+
+    msg = (
+        "📊 **Статистика сетевого трафика**\n\n"
+        "🌐 **Общий трафик сервера:**\n"
+        f"  • ⬇️ **Скачано (Download):** `{srv['formatted_downlink']}`\n"
+        f"  • ⬆️ **Загружено (Upload):** `{srv['formatted_uplink']}`\n"
+        f"  • 🔄 **Суммарно:** `{srv['formatted_total']}`\n\n"
+        f"👥 **Пользователи ({len(stats_data['users'])}):**\n"
+    )
+
+    keyboard = []
+    if not stats_data["users"]:
+        msg += "  *Пользователи не найдены.*\n"
+    else:
+        for idx, u in enumerate(stats_data["users"], 1):
+            uname = u["username"]
+            msg += f"{idx}. `{uname}` — **{u['formatted_total']}** (⬇️ {u['formatted_downlink']} / ⬆️ {u['formatted_uplink']})\n"
+            keyboard.append([
+                InlineKeyboardButton(f"👤 {uname} ({u['formatted_total']})", callback_data=f"info_{uname}")
+            ])
+
+    msg += "\n💡 *Трафик учитывается через VLESS-REALITY (Vision и XHTTP) и сохраняется при перезагрузках.*"
+
+    keyboard.append([
+        InlineKeyboardButton("🔄 Обновить данные", callback_data="refresh_stats")
+    ])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    if update.callback_query:
+        try:
+            await update.callback_query.edit_message_text(
+                msg,
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+        except Exception:
+            await update.callback_query.message.reply_text(
+                msg,
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+    else:
+        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
 
 
 @admin_required
@@ -519,12 +601,23 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ng_st = get_svc_status("nginx")
     wp_st = get_docker_status("tgweb-proxy")
 
+    traffic_line = ""
+    try:
+        s_data = get_all_traffic_stats(sync=False)
+        tot_traffic = s_data["server_total"]["formatted_total"]
+        tot_dl = s_data["server_total"]["formatted_downlink"]
+        tot_ul = s_data["server_total"]["formatted_uplink"]
+        traffic_line = f"📊 **Суммарный трафик VPN:** `{tot_traffic}` (⬇️ {tot_dl} / ⬆️ {tot_ul})\n\n"
+    except Exception:
+        pass
+
     msg = (
         "📊 **Статус сервера:**\n\n"
         f"📦 **Sing-Box:** {sb_st}\n"
         f"⚡ **Xray-Core (REALITY/XHTTP):** {xr_st}\n"
         f"🌐 **Nginx:** {ng_st}\n"
         f"✈️ **Telegram Web Proxy:** {wp_st}\n\n"
+        f"{traffic_line}"
         f"💾 **Диск:**\n```{df_r.stdout.strip()}```\n\n"
         f"🧠 **Память:**\n```{mem_r.stdout.strip()}```"
     )
@@ -551,6 +644,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Не удалось удалить пользователя {username}.")
     elif data.startswith("info_"):
         username = data[5:]
+        u_stats = get_user_traffic(username, sync=True)
         sub_info = get_subscription_info(username, DOMAIN, SUBS_PATH)
         if sub_info:
             sub_url = sub_info["sub_url"]
@@ -559,21 +653,45 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg = (
                 f"👤 **Пользователь:** `{username}`\n"
                 f"🔑 **Секретный токен:** `{token_preview}`\n\n"
+                f"📊 **Использование трафика:**\n"
+                f"  • ⬇️ **Скачано (Download):** `{u_stats['formatted_downlink']}`\n"
+                f"  • ⬆️ **Загружено (Upload):** `{u_stats['formatted_uplink']}`\n"
+                f"  • 🔄 **Всего:** `{u_stats['formatted_total']}`\n\n"
                 f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
                 f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
             )
             keyboard = [
                 [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
                 [InlineKeyboardButton("🔄 Ротировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🔄 Сбросить трафик", callback_data=f"rst_{username}")],
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
         else:
-            msg = f"👤 **Пользователь:** `{username}`\n\n⚠️ Активная токенизированная подписка не найдена в реестре."
+            msg = (
+                f"👤 **Пользователь:** `{username}`\n\n"
+                f"📊 **Использование трафика:**\n"
+                f"  • ⬇️ **Скачано (Download):** `{u_stats['formatted_downlink']}`\n"
+                f"  • ⬆️ **Загружено (Upload):** `{u_stats['formatted_uplink']}`\n"
+                f"  • 🔄 **Всего:** `{u_stats['formatted_total']}`\n\n"
+                f"⚠️ Активная токенизированная подписка не найдена в реестре."
+            )
             keyboard = [
                 [InlineKeyboardButton("🔄 Сгенерировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🔄 Сбросить трафик", callback_data=f"rst_{username}")],
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
         await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data.startswith("rst_"):
+        username = data[4:]
+        reset_user_traffic(username)
+        await query.answer(f"Трафик {username} сброшен на 0 B")
+        await query.message.reply_text(
+            f"✅ Трафик пользователя `{username}` успешно сброшен на **0 B**.",
+            parse_mode="Markdown"
+        )
+    elif data in ("show_stats", "refresh_stats"):
+        await query.answer("Обновление статистики...")
+        await stats_command(update, context)
     elif data.startswith("rot_"):
         username = data[4:]
         try:
@@ -622,6 +740,8 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await process_new_user(update, uname)
     elif text == "👥 Список ключей":
         await list_users_command(update, context)
+    elif text in ("📊 Трафик пользователей", "📊 Трафик", "📊 Статистика", "/stats"):
+        await stats_command(update, context)
     elif text == "🌐 Telegram Web Proxy":
         await proxy_command(update, context)
     elif text == "📊 Статус сервера":
@@ -671,6 +791,18 @@ def main():
     except Exception as sync_err:
         logger.warning("Subscription synchronization encountered a non-fatal error: %s", sync_err)
 
+    # Automatically ensure Xray configuration includes traffic statistics API & policy
+    if os.path.exists(XRAY_CONFIG_JSON):
+        try:
+            atomic_modify_xray_config(
+                mutation_fn=ensure_xray_stats_config,
+                config_path=XRAY_CONFIG_JSON,
+                control_runner=run_privileged_control
+            )
+            logger.info("Xray traffic statistics API configuration verified.")
+        except Exception as xray_stats_err:
+            logger.warning("Could not automatically configure Xray stats: %s", xray_stats_err)
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))
@@ -679,6 +811,8 @@ def main():
     app.add_handler(CommandHandler("add", new_user_command))
     app.add_handler(CommandHandler("list", list_users_command))
     app.add_handler(CommandHandler("users", list_users_command))
+    app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("traffic", stats_command))
     app.add_handler(CommandHandler("del", del_user_command))
     app.add_handler(CommandHandler("proxy", proxy_command))
     app.add_handler(CommandHandler("webproxy", proxy_command))
@@ -687,6 +821,16 @@ def main():
     app.add_handler(CallbackQueryHandler(callback_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_handler))
     app.add_error_handler(error_handler)
+
+    # Periodic background stats sync
+    if getattr(app, "job_queue", None):
+        async def scheduled_stats_sync(context: ContextTypes.DEFAULT_TYPE):
+            try:
+                sync_traffic_stats()
+            except Exception as e:
+                logger.debug("Scheduled stats sync error: %s", e)
+
+        app.job_queue.run_repeating(scheduled_stats_sync, interval=120, first=10)
 
     logger.info("Bot starting...")
     app.run_polling()

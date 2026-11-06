@@ -11,3 +11,4 @@ incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-check /tmp/xray
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-reload
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-rollback
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-status
+incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-stats
