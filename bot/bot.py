@@ -328,7 +328,7 @@ def generate_qr(data: str) -> io.BytesIO:
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
-        "Панель управления **Sing-Box VLESS** и **Telegram Web Proxy**.\n\n"
+        "Панель управления **Dual-Transport Stealth VPN (Xray REALITY / Sing-Box)** и **Telegram Web Proxy**.\n\n"
         "⚡ **Доступные команды:**\n"
         "• `/new <имя>` — сгенерировать ключ и универсальную подписку\n"
         "• `/list` — список всех пользователей и ключей\n"

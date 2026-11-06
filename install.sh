@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Telegram Web Proxy & Sing-Box Universal Suite - Automated Installer
+# Dual-Transport Stealth VPN & Telegram Web Proxy - Automated Installer
 # Target OS: Ubuntu 22.04/24.04, Debian 12 (x86_64)
 # ==============================================================================
 
@@ -29,7 +29,7 @@ fi
 
 echo -e "${CYAN}${BOLD}"
 echo "╔═════════════════════════════════════════════════════════════════════╗"
-echo "║       Telegram Web Proxy & Sing-Box Universal Suite Installer       ║"
+echo "║     Dual-Transport Stealth VPN & Telegram Web Proxy Installer       ║"
 echo "╚═════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 

@@ -2,13 +2,14 @@
 
 # 🚀 tgproxy-vpsvless-tgbot
 
-### Telegram Web Proxy & Sing-Box Universal Suite (Incy, Happ, V2Ray, SFM)
+### 🛡️ Dual-Transport Stealth VPN (Xray REALITY Vision & XHTTP + Sing-Box) & Telegram Web Proxy
 
-Готовое решение «под ключ» для развёртывания на чистом VPS: **Secret-Sing-Box** (VLESS / Trojan поверх WebSocket с TLS), официальный **Telegram Web Proxy** (`tproxy-server`) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок для **Incy, Happ, Sing-Box (SFM/SFI), v2rayN / v2rayNG, Streisand, Shadowrocket** и других современных клиентов.
+Готовое решение «под ключ» для развёртывания на чистом VPS: двухтранспортный современный VPN на базе **Xray-Core** (высокоскоростной **VLESS + REALITY + Vision** и анти-DPI **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (legacy VLESS / Trojan WS + TLS), официальный **Telegram Web Proxy** (`tproxy-server`), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок (4 в 1) для **Incy, Happ, Sing-Box, v2rayN / v2rayNG, Streisand, Shadowrocket, Hiddify, Nekobox** и других современных клиентов.
 
 [![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-orange?logo=ubuntu)](https://ubuntu.com)
 [![Debian 12](https://img.shields.io/badge/Debian-12-red?logo=debian)](https://debian.org)
 [![Sing-Box](https://img.shields.io/badge/Sing--Box-Core-blue?logo=box)](https://sing-box.sagernet.org)
+[![Xray-Core](https://img.shields.io/badge/Xray--Core-REALITY%20%26%20XHTTP-blueviolet?logo=x)](https://github.com/XTLS/Xray-core)
 [![Design: AI Design Skills](https://img.shields.io/badge/Design-AI%20Design%20Skills-black?logo=figma)](https://github.com/elayadesign/ai-design-skills)
 [![Design: Hallmark Anti-Slop](https://img.shields.io/badge/Design-Hallmark%20Anti--Slop-blue?logo=ghost)](https://github.com/Nutlope/hallmark)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker)](https://docker.com)
@@ -121,7 +122,7 @@
 
 ### 5. 🛡️ Фаервол UFW и сетевая изоляция сервисов
 * **Политика по умолчанию**: `default deny incoming` — все порты закрыты, кроме явно разрешённых.
-* **Минимум открытых портов**: Открыты строго 3 порта: `22` (SSH), `80` (HTTP для валидации Let's Encrypt и безопасного редиректа), `443` (HTTPS).
+* **Строго необходимые открытые порты**: `22` (SSH), `80` (HTTP для валидации Let's Encrypt и безопасного редиректа), `443` (HTTPS Nginx), `8443` (Xray REALITY Vision), `8444` (Xray XHTTP REALITY).
 * **Локальная изоляция (Localhost Only)**: Все сервисы туннелирования привязаны строго к интерфейсу loopback `127.0.0.1`:
   * `127.0.0.1:11443` — Sing-Box VLESS WebSocket inbound.
   * `127.0.0.1:10443` — Sing-Box Trojan WebSocket inbound.
@@ -230,11 +231,14 @@ chmod +x install.sh
 
 ```bash
 # Проверка статуса всех компонентов
-systemctl status sing-box nginx incy-bot
+systemctl status xray sing-box nginx incy-bot
 docker ps
 
 # Просмотр логов Telegram-бота
 journalctl -u incy-bot.service -f
+
+# Просмотр логов ядра Xray
+journalctl -u xray -f
 
 # Просмотр логов ядра Sing-Box
 journalctl -u sing-box -f
@@ -261,7 +265,7 @@ backup-vps
 certbot renew --dry-run
 
 # Перезапуск сервисов при необходимости
-systemctl restart sing-box nginx incy-bot fail2ban
+systemctl restart xray sing-box nginx incy-bot fail2ban
 docker restart tgweb-proxy
 ```
 

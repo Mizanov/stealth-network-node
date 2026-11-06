@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Telegram Web Proxy & Sing-Box Universal Suite - Uninstaller
+# Dual-Transport Stealth VPN & Telegram Web Proxy - Uninstaller
 # ==============================================================================
 
 set -euo pipefail
