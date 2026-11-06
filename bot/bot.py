@@ -7,7 +7,7 @@ import io
 import base64
 import subprocess
 import logging
-from typing import Optional, List
+from typing import Optional, Set
 
 import qrcode
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -18,6 +18,13 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters
+)
+
+from auth import (
+    parse_admin_ids,
+    is_admin as auth_is_admin,
+    admin_required as auth_admin_required,
+    AuthorizationConfigurationError
 )
 
 logging.basicConfig(
@@ -39,8 +46,20 @@ def load_env_file(filepath: str = "/opt/incy-bot/.env"):
 load_env_file()
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-ADMIN_IDS_RAW = os.getenv("TELEGRAM_ADMIN_IDS", "").strip()
-ADMIN_IDS: List[int] = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()]
+
+# Strict Fail-Closed Authorization Verification at Module Startup
+try:
+    ADMIN_IDS: Set[int] = parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS"))
+except AuthorizationConfigurationError as e:
+    logger.critical("AUTHORIZATION FAILURE: %s", e)
+    sys.exit(1)
+
+def is_admin(user_id: Optional[int]) -> bool:
+    """Strict fail-closed admin check."""
+    return auth_is_admin(user_id, ADMIN_IDS)
+
+# Decorator bound to validated ADMIN_IDS
+admin_required = auth_admin_required(ADMIN_IDS)
 
 DOMAIN = os.getenv("MAIN_DOMAIN", "localhost").strip()
 TG_DOMAIN = os.getenv("TG_DOMAIN", f"tg.{DOMAIN}").strip()
@@ -52,14 +71,38 @@ CONFIG_JSON = os.getenv("SINGBOX_CONFIG_JSON", "/etc/sing-box/config.json").stri
 WWW_DIR = os.getenv("SUBS_DIR", f"/var/www/{SUBS_PATH}").strip()
 VLESS_TEMPLATE = os.getenv("VLESS_TEMPLATE", "/opt/incy-bot/template-vless.json").strip()
 TROJAN_TEMPLATE = os.getenv("TROJAN_TEMPLATE", "/opt/incy-bot/template-trj.json").strip()
+SINGBOX_CONTROL = os.getenv("SINGBOX_CONTROL_BIN", "/usr/local/bin/singbox-control").strip()
 
 if not TOKEN:
     logger.error("FATAL: TELEGRAM_BOT_TOKEN environment variable is not set!")
     sys.exit(1)
 
 
-def is_admin(user_id: int) -> bool:
-    return not ADMIN_IDS or user_id in ADMIN_IDS
+def run_privileged_control(action: str, target: Optional[str] = None) -> subprocess.CompletedProcess:
+    """
+    Invoke strictly audited privileged action via root-owned helper script.
+    Uses sudo if not running as root.
+    """
+    cmd = []
+    if os.geteuid() != 0:
+        cmd.append("sudo")
+
+    cmd.extend([SINGBOX_CONTROL, action])
+    if target:
+        cmd.append(target)
+
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True
+    )
+
+
+def reload_singbox():
+    """Reload sing-box via privileged root-owned helper."""
+    run_privileged_control("reload")
 
 
 def get_keyboard():
@@ -72,11 +115,16 @@ def get_keyboard():
 
 def get_web_proxy_info() -> dict:
     try:
+        cmd = []
+        if os.geteuid() != 0:
+            cmd.append("sudo")
+        cmd.extend([SINGBOX_CONTROL, "tgproxy-link"])
+
         res = subprocess.run(
-            ["docker", "exec", "tgweb-proxy", "show-link"],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=10
         )
         output = res.stdout
         link_match = re.search(r"Proxy link:\s+(https://\S+)", output)
@@ -122,8 +170,8 @@ def create_user_singbox(username: str) -> Optional[dict]:
         with open(CONFIG_JSON, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
 
-        # Reload sing-box core
-        subprocess.run(["systemctl", "reload", "sing-box.service"], check=True)
+        # Reload sing-box core via restricted helper
+        reload_singbox()
 
         os.makedirs(WWW_DIR, exist_ok=True)
 
@@ -201,7 +249,7 @@ def delete_user_singbox(username: str) -> bool:
         if found:
             with open(CONFIG_JSON, "w", encoding="utf-8") as f:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
-            subprocess.run(["systemctl", "reload", "sing-box.service"], check=True)
+            reload_singbox()
 
         for f_name in (f"{username}.txt", f"{username}-VLESS-CLIENT.json", f"{username}-TRJ-CLIENT.json"):
             p = f"{WWW_DIR}/{f_name}"
@@ -240,11 +288,8 @@ def generate_qr(data: str) -> io.BytesIO:
     return bio
 
 
+@admin_required
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
         "Панель управления **Sing-Box VLESS** и **Telegram Web Proxy**.\n\n"
@@ -259,11 +304,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, reply_markup=get_keyboard(), parse_mode="Markdown")
 
 
+@admin_required
 async def new_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     if context.args:
         username = context.args[0].strip()
     else:
@@ -318,11 +360,8 @@ async def process_new_user(update: Update, username: str):
     )
 
 
+@admin_required
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     users = get_users_list()
     if not users:
         await update.message.reply_text("Список пользователей пуст.", reply_markup=get_keyboard())
@@ -334,18 +373,15 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += f"• `{u}`\n"
         keyboard.append([
             InlineKeyboardButton(f"🔗 {u}", callback_data=f"info_{u}"),
-            InlineKeyboardButton(f"🗑 Удалить", callback_data=f"del_{u}")
+            InlineKeyboardButton("🗑 Удалить", callback_data=f"del_{u}")
         ])
 
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
 
 
+@admin_required
 async def del_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     if not context.args:
         await update.message.reply_text("Использование: `/del <имя_пользователя>`", parse_mode="Markdown")
         return
@@ -357,11 +393,8 @@ async def del_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Пользователь `{username}` не найден.")
 
 
+@admin_required
 async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     info = get_web_proxy_info()
     link = info.get("link", "")
     server = info.get("server", "")
@@ -383,19 +416,19 @@ async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
 
 
+@admin_required
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     def get_svc_status(svc: str) -> str:
         r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True)
         return "🟢 Active" if r.stdout.strip() == "active" else "🔴 Inactive"
 
     def get_docker_status(container: str) -> str:
-        r = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", container], capture_output=True, text=True)
-        status = r.stdout.strip()
-        return "🟢 Running" if status == "running" else f"🔴 {status}"
+        try:
+            r = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", container], capture_output=True, text=True)
+            status = r.stdout.strip()
+            return "🟢 Running" if status == "running" else f"🔴 {status}"
+        except Exception:
+            return "⚪ Unchecked"
 
     mem_r = subprocess.run(["free", "-m"], capture_output=True, text=True)
     df_r = subprocess.run(["df", "-h", "/"], capture_output=True, text=True)
@@ -415,13 +448,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
+@admin_required
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    if not is_admin(query.from_user.id):
-        await query.message.reply_text("⛔ Доступ запрещён.")
-        return
 
     data = query.data
     if data.startswith("del_"):
@@ -452,11 +482,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
 
 
+@admin_required
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     text = update.message.text.strip()
     if text in ("➕ Создать ключ", "➕ Создать ключ Incy"):
         uname = f"user_{uuid.uuid4().hex[:6]}"

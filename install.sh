@@ -236,22 +236,75 @@ if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
     docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
 fi
 
-# 12. Setup Client Templates & Telegram Bot
-info "Setting up Telegram Bot..."
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{SERVER_IP}}|$SERVER_IP|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
+# 12. Setup Privileged Helper, Permissions & Telegram Bot
+info "Setting up Telegram Bot and restricted privileges..."
 
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{SERVER_IP}}|$SERVER_IP|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
+# Create dedicated non-root system user for incy-bot if not present
+if ! id -u incy-bot &>/dev/null; then
+    info "Creating dedicated system user 'incy-bot'..."
+    useradd -r -s /usr/sbin/nologin -d /opt/incy-bot -M incy-bot
+fi
+
+# Install root-owned privileged helper
+info "Installing privileged control helper /usr/local/bin/singbox-control..."
+cp "$SCRIPT_DIR/scripts/singbox-control.sh" /usr/local/bin/singbox-control
+chown root:root /usr/local/bin/singbox-control
+chmod 755 /usr/local/bin/singbox-control
+
+# Configure restricted sudoers permissions with visudo validation
+info "Configuring restricted sudoers permissions for incy-bot..."
+mkdir -p /etc/sudoers.d
+cp "$SCRIPT_DIR/config/sudoers/incy-bot.sudoers" /etc/sudoers.d/incy-bot
+chmod 440 /etc/sudoers.d/incy-bot
+if ! visudo -cf /etc/sudoers.d/incy-bot; then
+    error "FATAL: Sudoers syntax validation failed for /etc/sudoers.d/incy-bot! Aborting."
+fi
+
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
+
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 # Bot files & Venv
-cp "$SCRIPT_DIR/bot/bot.py" /opt/incy-bot/bot.py
+cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
 
-printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\n"     "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" > /opt/incy-bot/.env
-chmod 600 /opt/incy-bot/.env
+printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\n" \
+    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" > /opt/incy-bot/.env
 
+# Permissions: incy-bot ownership and restricted read for .env
+chown -R incy-bot:incy-bot /opt/incy-bot
+chown root:incy-bot /opt/incy-bot/.env
+chmod 640 /opt/incy-bot/.env
+
+# Subscriptions dir ownership
+chown -R incy-bot:www-data "$WWW_DIR"
+chmod 770 "$WWW_DIR"
+
+# Sing-box config write permissions for incy-bot
+chown sing-box:incy-bot /etc/sing-box/config.json 2>/dev/null || chown root:incy-bot /etc/sing-box/config.json
+chmod 660 /etc/sing-box/config.json
+
+# Systemd service deployment & verification
 cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service
+if command -v systemd-analyze >/dev/null 2>&1; then
+    info "Verifying systemd unit security configuration..."
+    systemd-analyze verify /etc/systemd/system/incy-bot.service 2>&1 || true
+fi
+
 systemctl daemon-reload
 systemctl enable --now incy-bot.service
 systemctl restart incy-bot.service
