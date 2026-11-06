@@ -148,7 +148,7 @@ except Exception:
     xray-reload)
         SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
         if [ -x "$SYSTEMCTL_BIN" ]; then
-            exec "$SYSTEMCTL_BIN" reload xray.service 2>/dev/null || exec "$SYSTEMCTL_BIN" restart xray.service
+            exec "$SYSTEMCTL_BIN" restart xray.service
         else
             exit 0
         fi

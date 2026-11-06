@@ -169,10 +169,16 @@ class TestSystemdServiceHardening(unittest.TestCase):
             "ProtectKernelModules=true",
             "ProtectControlGroups=true",
             "LockPersonality=true",
-            "CapabilityBoundingSet=",
+            "ReadWritePaths=/opt/incy-bot /var/www /etc/sing-box /etc/xray /tmp",
         ]
         for directive in expected_directives:
             self.assertIn(directive, self.content, f"Missing critical systemd directive: {directive}")
+
+    def test_sudo_compatibility_directives(self):
+        """Directives that break sudo execution (like empty CapabilityBoundingSet or RestrictSUIDSGID) must not be set."""
+        self.assertNotIn("CapabilityBoundingSet=", self.content)
+        self.assertNotIn("RestrictSUIDSGID=true", self.content)
+        self.assertIn("NoNewPrivileges=false", self.content)
 
 
 if __name__ == "__main__":
