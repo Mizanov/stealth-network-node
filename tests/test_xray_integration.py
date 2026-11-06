@@ -452,5 +452,21 @@ class TestSudoersXrayPermissions(unittest.TestCase):
         self.assertIn("/usr/local/bin/singbox-control xray-status", content)
 
 
+class TestXrayServiceUnit(unittest.TestCase):
+    """Verifies config/xray/xray.service includes required capabilities to read config."""
+
+    def setUp(self):
+        self.repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+        self.service_file = os.path.join(self.repo_root, "config", "xray", "xray.service")
+
+    def test_xray_capabilities(self):
+        """xray.service must include CAP_DAC_OVERRIDE alongside NET caps to access 0660 config."""
+        with open(self.service_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn("CAP_DAC_OVERRIDE", content)
+        self.assertIn("CAP_NET_BIND_SERVICE", content)
+        self.assertIn("CAP_NET_ADMIN", content)
+
+
 if __name__ == "__main__":
     unittest.main()
