@@ -63,9 +63,14 @@ if [ -z "$MAIN_DOMAIN" ] || [ -z "$SUBS_PATH" ]; then
     exit 1
 fi
 
-# Detect ruleset path if missing
+# Detect ruleset path if missing from .env
 if [ -z "$RULESET_PATH" ]; then
-    RULESET_PATH=$(grep -oE 'location /([a-f0-9]{32})/' /etc/nginx/nginx.conf 2>/dev/null | head -n1 | cut -d'/' -f2 || echo "ruleset")
+    RULESET_PATH=$(grep -B 1 -E 'alias /var/www/' /etc/nginx/nginx.conf 2>/dev/null | grep 'location' | cut -d'/' -f2 || echo "")
+    if [ -n "$RULESET_PATH" ]; then
+        echo "RULESET_PATH=$RULESET_PATH" >> "$ENV_FILE"
+    else
+        RULESET_PATH="ruleset"
+    fi
 fi
 
 WWW_DIR="/var/www/$SUBS_PATH"
