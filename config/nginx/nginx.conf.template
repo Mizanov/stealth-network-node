@@ -33,9 +33,14 @@ http {
     include                       mime.types;
     default_type                  application/octet-stream;
 
-    # Logging
-    access_log                    off;
-    error_log                     /dev/null;
+    # Logging & Diagnostics
+    log_format privacy_audit '$remote_addr - [$time_local] "$request_method $uri" '
+                             '$status $body_bytes_sent "$http_referer" '
+                             'rt=$request_time uct="$upstream_connect_time" '
+                             'uht="$upstream_header_time" urt="$upstream_response_time"';
+
+    access_log                    /var/log/nginx/access.log privacy_audit buffer=32k flush=5s;
+    error_log                     /var/log/nginx/error.log warn;
 
     # File cache
     open_file_cache               max=10000 inactive=60s;
@@ -212,10 +217,10 @@ http {
             proxy_set_header X-Forwarded-Host  $host;
             proxy_set_header X-Forwarded-Port  $server_port;
 
-            # Proxy timeouts
+            # Proxy timeouts (extended for persistent WebSocket VPN tunnels)
             proxy_connect_timeout              60s;
-            proxy_send_timeout                 60s;
-            proxy_read_timeout                 60s;
+            proxy_send_timeout                 1d;
+            proxy_read_timeout                 1d;
         }
 
         # gzip

@@ -49,14 +49,20 @@ prompt_var() {
     local default_val="${3:-}"
     local current_val="${!var_name:-}"
 
+    # Strict validation of variable identifier name
+    if [[ ! "$var_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+        error "Invalid variable name: $var_name"
+        return 1
+    fi
+
     if [ -z "$current_val" ]; then
         if [ -n "$default_val" ]; then
             read -r -p "$prompt_text [$default_val]: " input
-            eval "$var_name="${input:-$default_val}""
+            printf -v "$var_name" '%s' "${input:-$default_val}"
         else
             while [ -z "${!var_name:-}" ]; do
                 read -r -p "$prompt_text: " input
-                eval "$var_name="$input""
+                printf -v "$var_name" '%s' "$input"
             done
         fi
     fi
@@ -251,7 +257,7 @@ docker run -d --name tgweb-proxy --restart unless-stopped \
     -v tgweb-data:/data \
     --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL \
     --security-opt no-new-privileges \
-    grayhoax/telegram-web-proxy:latest
+    grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45
 
 sleep 3
 if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
@@ -365,7 +371,8 @@ fi
 info "Configuring automated daily backup..."
 if [ -f "$SCRIPT_DIR/scripts/backup.sh" ]; then
     cp "$SCRIPT_DIR/scripts/backup.sh" /usr/local/bin/backup-vps
-    chmod +x /usr/local/bin/backup-vps
+    chown root:root /usr/local/bin/backup-vps
+    chmod 700 /usr/local/bin/backup-vps
     (crontab -l 2>/dev/null | grep -v 'backup-vps' || true; echo "0 3 * * * /usr/local/bin/backup-vps >/dev/null 2>&1") | crontab -
 fi
 

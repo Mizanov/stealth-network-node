@@ -1,6 +1,6 @@
 services:
   tgweb-proxy:
-    image: grayhoax/telegram-web-proxy:latest
+    image: grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45
     container_name: tgweb-proxy
     restart: unless-stopped
     ports:
