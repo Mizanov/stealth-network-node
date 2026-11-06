@@ -38,6 +38,13 @@ from config_manager import (
     ConfigReloadError,
     ConfigManagerError
 )
+from subscription_manager import (
+    create_or_update_subscription,
+    get_subscription_info,
+    rotate_subscription_token,
+    revoke_subscription,
+    SubscriptionError
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -182,59 +189,28 @@ def create_user_singbox(username: str) -> Optional[dict]:
         return {"error": str(e)}
 
     try:
-        os.makedirs(WWW_DIR, exist_ok=True)
-
-        # 1. Base64 Incy / Happ / V2Ray subscription (.txt)
-        vless_link = f"vless://{new_uuid}@{DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F{VLESS_PATH}#{DOMAIN}-VLESS-{valid_username}"
-        trojan_link = f"trojan://{new_pass}@{DOMAIN}:443?security=tls&type=ws&path=%2F{TROJAN_PATH}#{DOMAIN}-Trojan-{valid_username}"
-        sub_body = f"{vless_link}\n{trojan_link}\n"
-        sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
-
-        sub_txt_file = f"{WWW_DIR}/{valid_username}.txt"
-        with open(sub_txt_file, "w", encoding="utf-8") as f:
-            f.write(sub_b64)
-        os.chmod(sub_txt_file, 0o644)
-
-        # 2. Sing-Box full JSON profile from template
-        if os.path.exists(VLESS_TEMPLATE):
-            with open(VLESS_TEMPLATE, "r", encoding="utf-8") as f:
-                vless_client = json.load(f)
-
-            for ob in vless_client.get("outbounds", []):
-                if ob.get("tag") == "proxy":
-                    ob["uuid"] = new_uuid
-
-            client_file = f"{WWW_DIR}/{valid_username}-VLESS-CLIENT.json"
-            with open(client_file, "w", encoding="utf-8") as f:
-                json.dump(vless_client, f, indent=2, ensure_ascii=False)
-            os.chmod(client_file, 0o644)
-
-        # 3. Trojan full JSON profile from template
-        if os.path.exists(TROJAN_TEMPLATE):
-            with open(TROJAN_TEMPLATE, "r", encoding="utf-8") as f:
-                trj_client = json.load(f)
-
-            for ob in trj_client.get("outbounds", []):
-                if ob.get("tag") == "proxy":
-                    ob["password"] = new_pass
-
-            trj_file = f"{WWW_DIR}/{valid_username}-TRJ-CLIENT.json"
-            with open(trj_file, "w", encoding="utf-8") as f:
-                json.dump(trj_client, f, indent=2, ensure_ascii=False)
-            os.chmod(trj_file, 0o644)
-
-        incy_sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{valid_username}.txt"
-        singbox_json_url = f"https://{DOMAIN}/{SUBS_PATH}/{valid_username}-VLESS-CLIENT.json"
-        incy_deeplink = f"incy://add/{incy_sub_url}"
+        sub_info = create_or_update_subscription(
+            username=valid_username,
+            vless_uuid=new_uuid,
+            trojan_pass=new_pass,
+            domain=DOMAIN,
+            subs_path=SUBS_PATH,
+            vless_path=VLESS_PATH,
+            trojan_path=TROJAN_PATH,
+            www_dir=WWW_DIR,
+            vless_template=VLESS_TEMPLATE,
+            trojan_template=TROJAN_TEMPLATE
+        )
 
         return {
             "username": valid_username,
             "uuid": new_uuid,
-            "incy_sub_url": incy_sub_url,
-            "singbox_json_url": singbox_json_url,
-            "incy_deeplink": incy_deeplink,
-            "vless_link": vless_link,
-            "trojan_link": trojan_link
+            "token": sub_info["token"],
+            "incy_sub_url": sub_info["sub_url"],
+            "singbox_json_url": sub_info["singbox_json_url"],
+            "incy_deeplink": sub_info["deeplink"],
+            "vless_link": sub_info["vless_link"],
+            "trojan_link": sub_info["trojan_link"]
         }
     except Exception as e:
         logger.error(f"Error generating client profiles for {valid_username}: {e}", exc_info=True)
@@ -259,6 +235,10 @@ def delete_user_singbox(username: str) -> bool:
         logger.error(f"Error deleting user {username}: {e}")
         return False
 
+    # Revoke secure subscription token and cleanup files
+    revoke_subscription(valid_username, www_dir=WWW_DIR)
+
+    # Legacy cleanup if un-tokenized files existed
     for f_name in (f"{valid_username}.txt", f"{valid_username}-VLESS-CLIENT.json", f"{valid_username}-TRJ-CLIENT.json"):
         p = f"{WWW_DIR}/{f_name}"
         if os.path.exists(p):
@@ -465,18 +445,60 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Не удалось удалить пользователя {username}.")
     elif data.startswith("info_"):
         username = data[5:]
-        sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
-        sb_json = f"https://{DOMAIN}/{SUBS_PATH}/{username}-VLESS-CLIENT.json"
-        msg = (
-            f"👤 **Пользователь:** `{username}`\n\n"
-            f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
-            f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
-        )
-        keyboard = [
-            [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
-            [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
-        ]
+        sub_info = get_subscription_info(username, DOMAIN, SUBS_PATH)
+        if sub_info:
+            sub_url = sub_info["sub_url"]
+            sb_json = sub_info["singbox_json_url"]
+            token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
+            msg = (
+                f"👤 **Пользователь:** `{username}`\n"
+                f"🔑 **Секретный токен:** `{token_preview}`\n\n"
+                f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
+                f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
+            )
+            keyboard = [
+                [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
+                [InlineKeyboardButton("🔄 Ротировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
+        else:
+            msg = f"👤 **Пользователь:** `{username}`\n\n⚠️ Активная токенизированная подписка не найдена в реестре."
+            keyboard = [
+                [InlineKeyboardButton("🔄 Сгенерировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
         await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data.startswith("rot_"):
+        username = data[4:]
+        try:
+            new_sub = rotate_subscription_token(
+                username=username,
+                domain=DOMAIN,
+                subs_path=SUBS_PATH,
+                vless_path=VLESS_PATH,
+                trojan_path=TROJAN_PATH,
+                www_dir=WWW_DIR,
+                vless_template=VLESS_TEMPLATE,
+                trojan_template=TROJAN_TEMPLATE
+            )
+            new_sub_url = new_sub["sub_url"]
+            token_preview = new_sub["token"][:6] + "..." + new_sub["token"][-4:]
+            msg = (
+                f"🔄 **Токен подписки успешно обновлён!**\n\n"
+                f"👤 **Пользователь:** `{username}`\n"
+                f"🔑 **Новый токен:** `{token_preview}`\n"
+                f"⚠️ *Предыдущая ссылка на подписку аннулирована.*\n\n"
+                f"📋 **Новая ссылка на подписку:**\n`{new_sub_url}`\n\n"
+                f"📦 **Конфиг Sing-Box:**\n`{new_sub['singbox_json_url']}`"
+            )
+            keyboard = [
+                [InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url)],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
+            await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            logger.error(f"Error rotating subscription token for {username}: {e}")
+            await query.message.reply_text(f"❌ Ошибка ротации токена: {e}")
 
 
 @admin_required

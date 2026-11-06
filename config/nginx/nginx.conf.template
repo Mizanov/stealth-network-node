@@ -154,13 +154,20 @@ http {
             try_files $uri $uri/ /index.html;
         }
 
-        # Subscription
+        # Subscription (Hardened: anti-enumeration, autoindex disabled, logs muted to protect secret tokens)
         location ~ ^/{{SUBS_PATH}}/ {
             limit_req zone=limit_sub burst=20 nodelay;
             root /var/www;
+            autoindex off;
+            access_log off;
+
+            # Security and anti-caching headers for sensitive subscription tokens
             add_header Access-Control-Allow-Origin * always;
             add_header profile-update-interval 12 always;
             add_header subscription-userinfo "upload=0; download=0; total=1073741824000; expire=0" always;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
+            add_header Pragma "no-cache" always;
+            add_header X-Content-Type-Options "nosniff" always;
         }
 
         # Rule sets

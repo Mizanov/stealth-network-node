@@ -277,7 +277,7 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 # Bot files & Venv
-cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" "$SCRIPT_DIR/bot/config_manager.py" /opt/incy-bot/
+cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" "$SCRIPT_DIR/bot/config_manager.py" "$SCRIPT_DIR/bot/subscription_manager.py" /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
@@ -312,11 +312,25 @@ systemctl daemon-reload
 systemctl enable --now incy-bot.service
 systemctl restart incy-bot.service
 
-# Generate initial user subscription file
+# Generate initial user cryptographically secure subscription token & files
+FIRST_USER_TOKEN=$(openssl rand -hex 16)
 VLESS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#${MAIN_DOMAIN}-VLESS-${FIRST_USER_NAME}"
 TROJAN_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#${MAIN_DOMAIN}-Trojan-${FIRST_USER_NAME}"
-echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_NAME}.txt"
-chmod 644 "$WWW_DIR/${FIRST_USER_NAME}.txt"
+echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+
+cat <<EOF > /opt/incy-bot/subscriptions.json
+{
+  "${FIRST_USER_NAME}": {
+    "token": "${FIRST_USER_TOKEN}",
+    "vless_uuid": "${FIRST_USER_UUID}",
+    "trojan_pass": "${FIRST_USER_PASS}",
+    "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
+chown incy-bot:incy-bot /opt/incy-bot/subscriptions.json
+chmod 600 /opt/incy-bot/subscriptions.json
 
 # 13. Multi-Layer Security Hardening & Automated Backups
 info "Applying multi-layer security hardening (Firewall, Fail2ban, SSH, Kernel)..."
@@ -350,7 +364,7 @@ echo "   Ссылка для подключения: $TG_PROXY_LINK"
 echo ""
 echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / SFM):${NC}"
 echo "   • Пользователь: ${FIRST_USER_NAME}"
-echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
+echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_TOKEN}.txt"
 echo "   • Прямой VLESS: ${VLESS_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"
