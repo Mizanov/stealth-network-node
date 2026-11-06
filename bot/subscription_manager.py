@@ -9,6 +9,7 @@ Supports token generation, rotation, revocation, and automated cleanup.
 import os
 import json
 import fcntl
+import socket
 import secrets
 import logging
 import base64
@@ -81,6 +82,42 @@ def _save_registry_and_unlock(registry: Dict[str, Any], registry_path: str, lock
         except OSError:
             pass
         os.close(lock_fd)
+
+
+def _sanitize_client_template(client_data: dict, domain: str) -> dict:
+    """
+    Sanitizes client JSON configuration:
+    Resolves any {{SERVER_IP}} placeholders or missing /32 prefix in ip_cidr rules,
+    preventing Go netip.ParsePrefix errors in Sing-box clients.
+    """
+    resolved_ip = None
+    try:
+        resolved_ip = socket.gethostbyname(domain)
+    except Exception:
+        pass
+
+    route_rules = client_data.get("route", {}).get("rules", [])
+    sanitized_rules = []
+    for r in route_rules:
+        if "ip_cidr" in r and isinstance(r["ip_cidr"], list):
+            new_cidrs = []
+            for cidr in r["ip_cidr"]:
+                if "{{SERVER_IP" in cidr:
+                    if resolved_ip:
+                        new_cidrs.append(f"{resolved_ip}/32")
+                elif "/" not in cidr:
+                    new_cidrs.append(f"{cidr}/32")
+                else:
+                    new_cidrs.append(cidr)
+            if new_cidrs:
+                r["ip_cidr"] = new_cidrs
+                sanitized_rules.append(r)
+        else:
+            sanitized_rules.append(r)
+
+    if "route" in client_data and "rules" in client_data["route"]:
+        client_data["route"]["rules"] = sanitized_rules
+    return client_data
 
 
 def create_or_update_subscription(
@@ -176,6 +213,7 @@ def create_or_update_subscription(
                 for ob in vless_client.get("outbounds", []):
                     if ob.get("type") == "vless" or (ob.get("tag") == "proxy" and ob.get("type") != "selector"):
                         ob["uuid"] = vless_uuid
+                vless_client = _sanitize_client_template(vless_client, domain)
                 with open(vless_json_path, "w", encoding="utf-8") as f:
                     json.dump(vless_client, f, indent=2, ensure_ascii=False)
                 os.chmod(vless_json_path, 0o644)
@@ -191,6 +229,7 @@ def create_or_update_subscription(
                 for ob in trj_client.get("outbounds", []):
                     if ob.get("tag") == "proxy":
                         ob["password"] = trojan_pass
+                trj_client = _sanitize_client_template(trj_client, domain)
                 with open(trj_json_path, "w", encoding="utf-8") as f:
                     json.dump(trj_client, f, indent=2, ensure_ascii=False)
                 os.chmod(trj_json_path, 0o644)
@@ -447,6 +486,39 @@ def sync_subscriptions_from_config(
                     except OSError:
                         pass
             migrated_count += 1
+        else:
+            # Refresh client JSON configs to ensure latest template fixes are applied
+            token = existing_info.get("token")
+            if token:
+                if os.path.exists(vless_template):
+                    try:
+                        vless_json_path = os.path.join(www_dir, f"{token}-vless.json")
+                        with open(vless_template, "r", encoding="utf-8") as f:
+                            vless_client = json.load(f)
+                        for ob in vless_client.get("outbounds", []):
+                            if ob.get("type") == "vless" or (ob.get("tag") == "proxy" and ob.get("type") != "selector"):
+                                ob["uuid"] = uuid
+                        vless_client = _sanitize_client_template(vless_client, domain)
+                        with open(vless_json_path, "w", encoding="utf-8") as f:
+                            json.dump(vless_client, f, indent=2, ensure_ascii=False)
+                        os.chmod(vless_json_path, 0o644)
+                    except Exception as e:
+                        logger.warning("Could not refresh VLESS client json for %s: %s", user, e)
+
+                if os.path.exists(trojan_template):
+                    try:
+                        trj_json_path = os.path.join(www_dir, f"{token}-trj.json")
+                        with open(trojan_template, "r", encoding="utf-8") as f:
+                            trj_client = json.load(f)
+                        for ob in trj_client.get("outbounds", []):
+                            if ob.get("tag") == "proxy":
+                                ob["password"] = pw
+                        trj_client = _sanitize_client_template(trj_client, domain)
+                        with open(trj_json_path, "w", encoding="utf-8") as f:
+                            json.dump(trj_client, f, indent=2, ensure_ascii=False)
+                        os.chmod(trj_json_path, 0o644)
+                    except Exception as e:
+                        logger.warning("Could not refresh Trojan client json for %s: %s", user, e)
 
     return migrated_count
 

@@ -332,7 +332,7 @@
       },
       {
         "ip_cidr": [
-          "{{SERVER_IP}}"
+          "{{SERVER_IP}}/32"
         ],
         "outbound": "direct"
       },

@@ -252,9 +252,12 @@ ok "Служба Xray-Core настроена и запущена."
 
 # 8. Update Client Templates
 info "Обновление шаблонов профилей клиентов..."
+SERVER_IP="${SERVER_IP:-$(curl -s4 --max-time 3 https://api.ipify.org || curl -s4 --max-time 3 https://ifconfig.me || getent hosts "$MAIN_DOMAIN" | awk '{print $1}' | head -n1 || echo "127.0.0.1")}"
+
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
     -e "s|{{REALITY_SNI}}|${REALITY_SNI:-$MAIN_DOMAIN}|g" \
     -e "s|{{REALITY_PUBLIC_KEY}}|${REALITY_PUBLIC_KEY:-}|g" \
@@ -265,6 +268,7 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
