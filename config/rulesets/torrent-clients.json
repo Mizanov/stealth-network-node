@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "process_name": [
+        "Transmission",
+        "transmission-daemon",
+        "transmission-qt",
+        "qBittorrent",
+        "qbittorrent",
+        "uTorrent",
+        "BitTorrent",
+        "aria2c",
+        "fdm",
+        "Folx",
+        "Deluge",
+        "deluged",
+        "WebTorrent",
+        "PikTorrent"
+      ]
+    }
+  ]
+}

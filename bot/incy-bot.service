@@ -4,13 +4,32 @@ After=network.target sing-box.service nginx.service docker.service
 
 [Service]
 Type=simple
-User=root
+User=incy-bot
+Group=incy-bot
 WorkingDirectory=/opt/incy-bot
 ExecStart=/opt/incy-bot/venv/bin/python3 /opt/incy-bot/bot.py
 Restart=always
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/opt/incy-bot/.env
+
+# Security Hardening & Sandboxing
+# Note: NoNewPrivileges and RestrictSUIDSGID must remain disabled so sudo can execute
+# the strictly whitelisted root helper /usr/local/bin/singbox-control via /etc/sudoers.d/incy-bot.
+NoNewPrivileges=false
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+ReadWritePaths=/opt/incy-bot /var/www /etc/sing-box /tmp
+
+# Capabilities: drop all kernel capabilities
+CapabilityBoundingSet=
+AmbientCapabilities=
 
 [Install]
 WantedBy=multi-user.target

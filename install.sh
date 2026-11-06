@@ -49,14 +49,20 @@ prompt_var() {
     local default_val="${3:-}"
     local current_val="${!var_name:-}"
 
+    # Strict validation of variable identifier name
+    if [[ ! "$var_name" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]]; then
+        error "Invalid variable name: $var_name"
+        return 1
+    fi
+
     if [ -z "$current_val" ]; then
         if [ -n "$default_val" ]; then
             read -r -p "$prompt_text [$default_val]: " input
-            eval "$var_name="${input:-$default_val}""
+            printf -v "$var_name" '%s' "${input:-$default_val}"
         else
             while [ -z "${!var_name:-}" ]; do
                 read -r -p "$prompt_text: " input
-                eval "$var_name="$input""
+                printf -v "$var_name" '%s' "$input"
             done
         fi
     fi
@@ -189,20 +195,42 @@ if [ -d "$SCRIPT_DIR/site" ]; then
 fi
 chown -R www-data:www-data /var/www/site
 
-info "Downloading routing rulesets..."
-for rs in geoip-ru geosite-ru geosite-category-ads-all; do
-    wget -q -O "$RULESET_DIR/${rs}.srs" "https://raw.githubusercontent.com/A-Zuro/ruleset/main/${rs}.srs" 2>/dev/null || true
-done
+info "Downloading and validating routing rulesets..."
+if [ -f "$SCRIPT_DIR/scripts/download-rulesets.sh" ]; then
+    bash "$SCRIPT_DIR/scripts/download-rulesets.sh" "$RULESET_DIR"
+else
+    error "FATAL: scripts/download-rulesets.sh not found! Aborting."
+fi
 
 # 9. Configure Sing-Box
 info "Deploying Sing-Box configuration..."
 SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me || echo "127.0.0.1")
 
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/sing-box/config.json.template" > /etc/sing-box/config.json
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/sing-box/config.json.template" > /etc/sing-box/config.json
 
 # Inject initial user
-jq ".inbounds[] |= if .tag == "vless-in" then .users = [{"name": "$FIRST_USER_NAME", "uuid": "$FIRST_USER_UUID"}] elif .tag == "trojan-in" then .users = [{"name": "$FIRST_USER_NAME", "password": "$FIRST_USER_PASS"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
+jq ".inbounds[] |= if .tag == \"vless-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"uuid\": \"$FIRST_USER_UUID\"}] elif .tag == \"trojan-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"password\": \"$FIRST_USER_PASS\"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
 mv /tmp/sb_cfg.json /etc/sing-box/config.json
+
+# Verify presence of all mandatory rulesets before starting Sing-Box
+for req_rs in geoip-ru.srs geosite-category-gov-ru.srs geosite-category-ads-all.srs geosite-openai.srs geosite-anthropic.srs geosite-xai.srs; do
+    if [ ! -f "$RULESET_DIR/$req_rs" ]; then
+        error "FATAL: Mandatory ruleset '$RULESET_DIR/$req_rs' is missing! Sing-Box cannot start. Aborting."
+    fi
+done
+
+# Perform pre-flight configuration validation
+if command -v sing-box >/dev/null 2>&1; then
+    info "Verifying Sing-Box configuration validity..."
+    if ! sing-box check -c /etc/sing-box/config.json; then
+        error "FATAL: Sing-Box pre-flight check failed! Aborting."
+    fi
+fi
 
 systemctl daemon-reload
 systemctl enable --now sing-box
@@ -229,38 +257,108 @@ docker run -d --name tgweb-proxy --restart unless-stopped \
     -v tgweb-data:/data \
     --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL \
     --security-opt no-new-privileges \
-    grayhoax/telegram-web-proxy:latest
+    grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45
 
 sleep 3
 if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
     docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
 fi
 
-# 12. Setup Client Templates & Telegram Bot
-info "Setting up Telegram Bot..."
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{SERVER_IP}}|$SERVER_IP|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
+# 12. Setup Privileged Helper, Permissions & Telegram Bot
+info "Setting up Telegram Bot and restricted privileges..."
 
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{SERVER_IP}}|$SERVER_IP|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
+# Create dedicated non-root system user for incy-bot if not present
+if ! id -u incy-bot &>/dev/null; then
+    info "Creating dedicated system user 'incy-bot'..."
+    useradd -r -s /usr/sbin/nologin -d /opt/incy-bot -M incy-bot
+fi
+
+# Install root-owned privileged helper
+info "Installing privileged control helper /usr/local/bin/singbox-control..."
+cp "$SCRIPT_DIR/scripts/singbox-control.sh" /usr/local/bin/singbox-control
+chown root:root /usr/local/bin/singbox-control
+chmod 755 /usr/local/bin/singbox-control
+
+# Configure restricted sudoers permissions with visudo validation
+info "Configuring restricted sudoers permissions for incy-bot..."
+mkdir -p /etc/sudoers.d
+cp "$SCRIPT_DIR/config/sudoers/incy-bot.sudoers" /etc/sudoers.d/incy-bot
+chmod 440 /etc/sudoers.d/incy-bot
+if ! visudo -cf /etc/sudoers.d/incy-bot; then
+    error "FATAL: Sudoers syntax validation failed for /etc/sudoers.d/incy-bot! Aborting."
+fi
+
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/templates/template-vless.json" > /opt/incy-bot/template-vless.json
+
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{SERVER_IP}}|$SERVER_IP|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 # Bot files & Venv
-cp "$SCRIPT_DIR/bot/bot.py" /opt/incy-bot/bot.py
+cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" "$SCRIPT_DIR/bot/config_manager.py" "$SCRIPT_DIR/bot/subscription_manager.py" /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
 
-printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\n"     "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" > /opt/incy-bot/.env
-chmod 600 /opt/incy-bot/.env
+printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\n" \
+    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" > /opt/incy-bot/.env
 
+# Permissions: incy-bot ownership and restricted read for .env
+chown -R incy-bot:incy-bot /opt/incy-bot
+chown root:incy-bot /opt/incy-bot/.env
+chmod 640 /opt/incy-bot/.env
+
+# Subscriptions dir ownership
+chown -R incy-bot:www-data "$WWW_DIR"
+chmod 770 "$WWW_DIR"
+
+# Sing-box directory & config permissions for transactional atomic updates by incy-bot
+mkdir -p /etc/sing-box
+chown root:incy-bot /etc/sing-box
+chmod 775 /etc/sing-box
+chown sing-box:incy-bot /etc/sing-box/config.json 2>/dev/null || chown root:incy-bot /etc/sing-box/config.json 2>/dev/null || true
+chmod 660 /etc/sing-box/config.json 2>/dev/null || true
+
+# Systemd service deployment & verification
 cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service
+if command -v systemd-analyze >/dev/null 2>&1; then
+    info "Verifying systemd unit security configuration..."
+    systemd-analyze verify /etc/systemd/system/incy-bot.service 2>&1 || true
+fi
+
 systemctl daemon-reload
 systemctl enable --now incy-bot.service
 systemctl restart incy-bot.service
 
-# Generate initial user subscription file
+# Generate initial user cryptographically secure subscription token & files
+FIRST_USER_TOKEN=$(openssl rand -hex 16)
 VLESS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#${MAIN_DOMAIN}-VLESS-${FIRST_USER_NAME}"
 TROJAN_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#${MAIN_DOMAIN}-Trojan-${FIRST_USER_NAME}"
-echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_NAME}.txt"
-chmod 644 "$WWW_DIR/${FIRST_USER_NAME}.txt"
+echo -e "${VLESS_LINK}\n${TROJAN_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+
+cat <<EOF > /opt/incy-bot/subscriptions.json
+{
+  "${FIRST_USER_NAME}": {
+    "token": "${FIRST_USER_TOKEN}",
+    "vless_uuid": "${FIRST_USER_UUID}",
+    "trojan_pass": "${FIRST_USER_PASS}",
+    "updated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  }
+}
+EOF
+chown incy-bot:incy-bot /opt/incy-bot/subscriptions.json
+chmod 600 /opt/incy-bot/subscriptions.json
 
 # 13. Multi-Layer Security Hardening & Automated Backups
 info "Applying multi-layer security hardening (Firewall, Fail2ban, SSH, Kernel)..."
@@ -273,7 +371,8 @@ fi
 info "Configuring automated daily backup..."
 if [ -f "$SCRIPT_DIR/scripts/backup.sh" ]; then
     cp "$SCRIPT_DIR/scripts/backup.sh" /usr/local/bin/backup-vps
-    chmod +x /usr/local/bin/backup-vps
+    chown root:root /usr/local/bin/backup-vps
+    chmod 700 /usr/local/bin/backup-vps
     (crontab -l 2>/dev/null | grep -v 'backup-vps' || true; echo "0 3 * * * /usr/local/bin/backup-vps >/dev/null 2>&1") | crontab -
 fi
 
@@ -294,7 +393,7 @@ echo "   Ссылка для подключения: $TG_PROXY_LINK"
 echo ""
 echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / SFM):${NC}"
 echo "   • Пользователь: ${FIRST_USER_NAME}"
-echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_NAME}.txt"
+echo "   • Подписка:     https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_TOKEN}.txt"
 echo "   • Прямой VLESS: ${VLESS_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"

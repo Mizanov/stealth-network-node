@@ -7,7 +7,7 @@ import io
 import base64
 import subprocess
 import logging
-from typing import Optional, List
+from typing import Optional, Set
 
 import qrcode
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -18,6 +18,33 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters
+)
+
+from auth import (
+    parse_admin_ids,
+    is_admin as auth_is_admin,
+    admin_required as auth_admin_required,
+    AuthorizationConfigurationError
+)
+from config_manager import (
+    validate_username,
+    add_user_to_config,
+    delete_user_from_config,
+    list_users_from_config,
+    UserAlreadyExistsError,
+    UserNotFoundError,
+    InvalidUsernameError,
+    ConfigValidationError,
+    ConfigReloadError,
+    ConfigManagerError
+)
+from subscription_manager import (
+    create_or_update_subscription,
+    get_subscription_info,
+    rotate_subscription_token,
+    revoke_subscription,
+    sync_subscriptions_from_config,
+    SubscriptionError
 )
 
 logging.basicConfig(
@@ -39,8 +66,20 @@ def load_env_file(filepath: str = "/opt/incy-bot/.env"):
 load_env_file()
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-ADMIN_IDS_RAW = os.getenv("TELEGRAM_ADMIN_IDS", "").strip()
-ADMIN_IDS: List[int] = [int(x.strip()) for x in ADMIN_IDS_RAW.split(",") if x.strip().isdigit()]
+
+# Strict Fail-Closed Authorization Verification at Module Startup
+try:
+    ADMIN_IDS: Set[int] = parse_admin_ids(os.getenv("TELEGRAM_ADMIN_IDS"))
+except AuthorizationConfigurationError as e:
+    logger.critical("AUTHORIZATION FAILURE: %s", e)
+    sys.exit(1)
+
+def is_admin(user_id: Optional[int]) -> bool:
+    """Strict fail-closed admin check."""
+    return auth_is_admin(user_id, ADMIN_IDS)
+
+# Decorator bound to validated ADMIN_IDS
+admin_required = auth_admin_required(ADMIN_IDS)
 
 DOMAIN = os.getenv("MAIN_DOMAIN", "localhost").strip()
 TG_DOMAIN = os.getenv("TG_DOMAIN", f"tg.{DOMAIN}").strip()
@@ -52,14 +91,38 @@ CONFIG_JSON = os.getenv("SINGBOX_CONFIG_JSON", "/etc/sing-box/config.json").stri
 WWW_DIR = os.getenv("SUBS_DIR", f"/var/www/{SUBS_PATH}").strip()
 VLESS_TEMPLATE = os.getenv("VLESS_TEMPLATE", "/opt/incy-bot/template-vless.json").strip()
 TROJAN_TEMPLATE = os.getenv("TROJAN_TEMPLATE", "/opt/incy-bot/template-trj.json").strip()
+SINGBOX_CONTROL = os.getenv("SINGBOX_CONTROL_BIN", "/usr/local/bin/singbox-control").strip()
 
 if not TOKEN:
     logger.error("FATAL: TELEGRAM_BOT_TOKEN environment variable is not set!")
     sys.exit(1)
 
 
-def is_admin(user_id: int) -> bool:
-    return not ADMIN_IDS or user_id in ADMIN_IDS
+def run_privileged_control(action: str, target: Optional[str] = None) -> subprocess.CompletedProcess:
+    """
+    Invoke strictly audited privileged action via root-owned helper script.
+    Uses sudo if not running as root.
+    """
+    cmd = []
+    if os.geteuid() != 0:
+        cmd.append("sudo")
+
+    cmd.extend([SINGBOX_CONTROL, action])
+    if target:
+        cmd.append(target)
+
+    return subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=True
+    )
+
+
+def reload_singbox():
+    """Reload sing-box via privileged root-owned helper."""
+    run_privileged_control("reload")
 
 
 def get_keyboard():
@@ -72,11 +135,16 @@ def get_keyboard():
 
 def get_web_proxy_info() -> dict:
     try:
+        cmd = []
+        if os.geteuid() != 0:
+            cmd.append("sudo")
+        cmd.extend([SINGBOX_CONTROL, "tgproxy-link"])
+
         res = subprocess.run(
-            ["docker", "exec", "tgweb-proxy", "show-link"],
+            cmd,
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=10
         )
         output = res.stdout
         link_match = re.search(r"Proxy link:\s+(https://\S+)", output)
@@ -96,137 +164,95 @@ def get_web_proxy_info() -> dict:
 
 
 def create_user_singbox(username: str) -> Optional[dict]:
-    if not re.match(r"^[a-zA-Z0-9_-]+$", username):
-        return None
+    try:
+        valid_username = validate_username(username)
+    except InvalidUsernameError as e:
+        return {"error": str(e)}
+
+    new_uuid = str(uuid.uuid4())
+    new_pass = uuid.uuid4().hex[:16]
 
     try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        add_user_to_config(
+            username=valid_username,
+            new_uuid=new_uuid,
+            new_pass=new_pass,
+            config_path=CONFIG_JSON,
+            control_runner=run_privileged_control
+        )
+    except UserAlreadyExistsError:
+        return {"error": f"Пользователь {valid_username} уже существует!"}
+    except (ConfigValidationError, ConfigReloadError, ConfigManagerError) as e:
+        logger.error(f"Configuration mutation failed: {e}")
+        return {"error": f"Ошибка конфигурации Sing-box: {e}"}
+    except Exception as e:
+        logger.error(f"Unexpected error in create_user_singbox: {e}", exc_info=True)
+        return {"error": str(e)}
 
-        # Check existing user
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") in ("vless-in", "trojan-in"):
-                for u in ib.get("users", []):
-                    if u.get("name") == username:
-                        return {"error": f"Пользователь {username} уже существует!"}
-
-        new_uuid = str(uuid.uuid4())
-        new_pass = uuid.uuid4().hex[:16]
-
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") == "vless-in":
-                ib.setdefault("users", []).append({"name": username, "uuid": new_uuid})
-            elif ib.get("tag") == "trojan-in":
-                ib.setdefault("users", []).append({"name": username, "password": new_pass})
-
-        with open(CONFIG_JSON, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2, ensure_ascii=False)
-
-        # Reload sing-box core
-        subprocess.run(["systemctl", "reload", "sing-box.service"], check=True)
-
-        os.makedirs(WWW_DIR, exist_ok=True)
-
-        # 1. Base64 Incy / Happ / V2Ray subscription (.txt)
-        vless_link = f"vless://{new_uuid}@{DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F{VLESS_PATH}#{DOMAIN}-VLESS-{username}"
-        trojan_link = f"trojan://{new_pass}@{DOMAIN}:443?security=tls&type=ws&path=%2F{TROJAN_PATH}#{DOMAIN}-Trojan-{username}"
-        sub_body = f"{vless_link}\n{trojan_link}\n"
-        sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
-
-        sub_txt_file = f"{WWW_DIR}/{username}.txt"
-        with open(sub_txt_file, "w", encoding="utf-8") as f:
-            f.write(sub_b64)
-        os.chmod(sub_txt_file, 0o644)
-
-        # 2. Sing-Box full JSON profile from template
-        if os.path.exists(VLESS_TEMPLATE):
-            with open(VLESS_TEMPLATE, "r", encoding="utf-8") as f:
-                vless_client = json.load(f)
-
-            for ob in vless_client.get("outbounds", []):
-                if ob.get("tag") == "proxy":
-                    ob["uuid"] = new_uuid
-
-            client_file = f"{WWW_DIR}/{username}-VLESS-CLIENT.json"
-            with open(client_file, "w", encoding="utf-8") as f:
-                json.dump(vless_client, f, indent=2, ensure_ascii=False)
-            os.chmod(client_file, 0o644)
-
-        # 3. Trojan full JSON profile from template
-        if os.path.exists(TROJAN_TEMPLATE):
-            with open(TROJAN_TEMPLATE, "r", encoding="utf-8") as f:
-                trj_client = json.load(f)
-
-            for ob in trj_client.get("outbounds", []):
-                if ob.get("tag") == "proxy":
-                    ob["password"] = new_pass
-
-            trj_file = f"{WWW_DIR}/{username}-TRJ-CLIENT.json"
-            with open(trj_file, "w", encoding="utf-8") as f:
-                json.dump(trj_client, f, indent=2, ensure_ascii=False)
-            os.chmod(trj_file, 0o644)
-
-        incy_sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
-        singbox_json_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}-VLESS-CLIENT.json"
-        incy_deeplink = f"incy://add/{incy_sub_url}"
+    try:
+        sub_info = create_or_update_subscription(
+            username=valid_username,
+            vless_uuid=new_uuid,
+            trojan_pass=new_pass,
+            domain=DOMAIN,
+            subs_path=SUBS_PATH,
+            vless_path=VLESS_PATH,
+            trojan_path=TROJAN_PATH,
+            www_dir=WWW_DIR,
+            vless_template=VLESS_TEMPLATE,
+            trojan_template=TROJAN_TEMPLATE
+        )
 
         return {
-            "username": username,
+            "username": valid_username,
             "uuid": new_uuid,
-            "incy_sub_url": incy_sub_url,
-            "singbox_json_url": singbox_json_url,
-            "incy_deeplink": incy_deeplink,
-            "vless_link": vless_link,
-            "trojan_link": trojan_link
+            "token": sub_info["token"],
+            "incy_sub_url": sub_info["sub_url"],
+            "singbox_json_url": sub_info["singbox_json_url"],
+            "incy_deeplink": sub_info["deeplink"],
+            "vless_link": sub_info["vless_link"],
+            "trojan_link": sub_info["trojan_link"]
         }
     except Exception as e:
-        logger.error(f"Error creating user: {e}", exc_info=True)
-        return {"error": str(e)}
+        logger.error(f"Error generating client profiles for {valid_username}: {e}", exc_info=True)
+        return {"error": f"Пользователь создан в ядре, но возникла ошибка при создании профилей: {e}"}
 
 
 def delete_user_singbox(username: str) -> bool:
     try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        valid_username = validate_username(username)
+    except InvalidUsernameError:
+        return False
 
-        found = False
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") in ("vless-in", "trojan-in"):
-                users = ib.get("users", [])
-                new_users = [u for u in users if u.get("name") != username]
-                if len(new_users) != len(users):
-                    ib["users"] = new_users
-                    found = True
-
-        if found:
-            with open(CONFIG_JSON, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            subprocess.run(["systemctl", "reload", "sing-box.service"], check=True)
-
-        for f_name in (f"{username}.txt", f"{username}-VLESS-CLIENT.json", f"{username}-TRJ-CLIENT.json"):
-            p = f"{WWW_DIR}/{f_name}"
-            if os.path.exists(p):
-                os.remove(p)
-
-        return found
+    try:
+        delete_user_from_config(
+            username=valid_username,
+            config_path=CONFIG_JSON,
+            control_runner=run_privileged_control
+        )
+    except UserNotFoundError:
+        return False
     except Exception as e:
         logger.error(f"Error deleting user {username}: {e}")
         return False
 
+    # Revoke secure subscription token and cleanup files
+    revoke_subscription(valid_username, www_dir=WWW_DIR)
+
+    # Legacy cleanup if un-tokenized files existed
+    for f_name in (f"{valid_username}.txt", f"{valid_username}-VLESS-CLIENT.json", f"{valid_username}-TRJ-CLIENT.json"):
+        p = f"{WWW_DIR}/{f_name}"
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+    return True
+
 
 def get_users_list() -> list:
-    try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        users = []
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") == "vless-in":
-                for u in ib.get("users", []):
-                    users.append(u.get("name"))
-        return sorted(list(set(users)))
-    except Exception as e:
-        logger.error(f"Error listing users: {e}")
-        return []
+    return list_users_from_config(config_path=CONFIG_JSON)
 
 
 def generate_qr(data: str) -> io.BytesIO:
@@ -240,11 +266,8 @@ def generate_qr(data: str) -> io.BytesIO:
     return bio
 
 
+@admin_required
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
         "Панель управления **Sing-Box VLESS** и **Telegram Web Proxy**.\n\n"
@@ -259,11 +282,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, reply_markup=get_keyboard(), parse_mode="Markdown")
 
 
+@admin_required
 async def new_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     if context.args:
         username = context.args[0].strip()
     else:
@@ -318,11 +338,8 @@ async def process_new_user(update: Update, username: str):
     )
 
 
+@admin_required
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     users = get_users_list()
     if not users:
         await update.message.reply_text("Список пользователей пуст.", reply_markup=get_keyboard())
@@ -334,18 +351,15 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         msg += f"• `{u}`\n"
         keyboard.append([
             InlineKeyboardButton(f"🔗 {u}", callback_data=f"info_{u}"),
-            InlineKeyboardButton(f"🗑 Удалить", callback_data=f"del_{u}")
+            InlineKeyboardButton("🗑 Удалить", callback_data=f"del_{u}")
         ])
 
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
 
 
+@admin_required
 async def del_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     if not context.args:
         await update.message.reply_text("Использование: `/del <имя_пользователя>`", parse_mode="Markdown")
         return
@@ -357,11 +371,8 @@ async def del_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"⚠️ Пользователь `{username}` не найден.")
 
 
+@admin_required
 async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     info = get_web_proxy_info()
     link = info.get("link", "")
     server = info.get("server", "")
@@ -383,19 +394,19 @@ async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
 
 
+@admin_required
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     def get_svc_status(svc: str) -> str:
         r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True)
         return "🟢 Active" if r.stdout.strip() == "active" else "🔴 Inactive"
 
     def get_docker_status(container: str) -> str:
-        r = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", container], capture_output=True, text=True)
-        status = r.stdout.strip()
-        return "🟢 Running" if status == "running" else f"🔴 {status}"
+        try:
+            r = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", container], capture_output=True, text=True)
+            status = r.stdout.strip()
+            return "🟢 Running" if status == "running" else f"🔴 {status}"
+        except Exception:
+            return "⚪ Unchecked"
 
     mem_r = subprocess.run(["free", "-m"], capture_output=True, text=True)
     df_r = subprocess.run(["df", "-h", "/"], capture_output=True, text=True)
@@ -415,13 +426,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
+@admin_required
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-
-    if not is_admin(query.from_user.id):
-        await query.message.reply_text("⛔ Доступ запрещён.")
-        return
 
     data = query.data
     if data.startswith("del_"):
@@ -438,25 +446,65 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Не удалось удалить пользователя {username}.")
     elif data.startswith("info_"):
         username = data[5:]
-        sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
-        sb_json = f"https://{DOMAIN}/{SUBS_PATH}/{username}-VLESS-CLIENT.json"
-        msg = (
-            f"👤 **Пользователь:** `{username}`\n\n"
-            f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
-            f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
-        )
-        keyboard = [
-            [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
-            [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
-        ]
+        sub_info = get_subscription_info(username, DOMAIN, SUBS_PATH)
+        if sub_info:
+            sub_url = sub_info["sub_url"]
+            sb_json = sub_info["singbox_json_url"]
+            token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
+            msg = (
+                f"👤 **Пользователь:** `{username}`\n"
+                f"🔑 **Секретный токен:** `{token_preview}`\n\n"
+                f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
+                f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
+            )
+            keyboard = [
+                [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
+                [InlineKeyboardButton("🔄 Ротировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
+        else:
+            msg = f"👤 **Пользователь:** `{username}`\n\n⚠️ Активная токенизированная подписка не найдена в реестре."
+            keyboard = [
+                [InlineKeyboardButton("🔄 Сгенерировать токен", callback_data=f"rot_{username}")],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
         await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    elif data.startswith("rot_"):
+        username = data[4:]
+        try:
+            new_sub = rotate_subscription_token(
+                username=username,
+                domain=DOMAIN,
+                subs_path=SUBS_PATH,
+                vless_path=VLESS_PATH,
+                trojan_path=TROJAN_PATH,
+                www_dir=WWW_DIR,
+                vless_template=VLESS_TEMPLATE,
+                trojan_template=TROJAN_TEMPLATE,
+                config_path=CONFIG_JSON
+            )
+            new_sub_url = new_sub["sub_url"]
+            token_preview = new_sub["token"][:6] + "..." + new_sub["token"][-4:]
+            msg = (
+                f"🔄 **Токен подписки успешно обновлён!**\n\n"
+                f"👤 **Пользователь:** `{username}`\n"
+                f"🔑 **Новый токен:** `{token_preview}`\n"
+                f"⚠️ *Предыдущая ссылка на подписку аннулирована.*\n\n"
+                f"📋 **Новая ссылка на подписку:**\n`{new_sub_url}`\n\n"
+                f"📦 **Конфиг Sing-Box:**\n`{new_sub['singbox_json_url']}`"
+            )
+            keyboard = [
+                [InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url)],
+                [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
+            ]
+            await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception as e:
+            logger.error(f"Error rotating subscription token for {username}: {e}")
+            await query.message.reply_text(f"❌ Ошибка ротации токена: {e}")
 
 
+@admin_required
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("⛔ Доступ запрещён.")
-        return
-
     text = update.message.text.strip()
     if text in ("➕ Создать ключ", "➕ Создать ключ Incy"):
         uname = f"user_{uuid.uuid4().hex[:6]}"
@@ -478,6 +526,22 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    try:
+        migrated = sync_subscriptions_from_config(
+            config_path=CONFIG_JSON,
+            domain=DOMAIN,
+            subs_path=SUBS_PATH,
+            vless_path=VLESS_PATH,
+            trojan_path=TROJAN_PATH,
+            www_dir=WWW_DIR,
+            vless_template=VLESS_TEMPLATE,
+            trojan_template=TROJAN_TEMPLATE
+        )
+        if migrated > 0:
+            logger.info("Migrated %d legacy user(s) to secure tokenized subscriptions.", migrated)
+    except Exception as sync_err:
+        logger.warning("Subscription synchronization encountered a non-fatal error: %s", sync_err)
+
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))

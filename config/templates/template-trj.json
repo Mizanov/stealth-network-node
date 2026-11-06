@@ -65,6 +65,9 @@
           "moscowtimes.ru",
           "lesswrong.ru"
         ],
+        "server": "dns-remote"
+      },
+      {
         "domain_keyword": [
           "habr",
           "animego",
@@ -78,6 +81,9 @@
           "ikianime",
           "anilibria"
         ],
+        "server": "dns-remote"
+      },
+      {
         "rule_set": [
           "telegram",
           "google"
@@ -99,6 +105,9 @@
           "remanga.org",
           "shopstory.live"
         ],
+        "server": "dns-local"
+      },
+      {
         "domain_keyword": [
           "xn--",
           "miradres",
@@ -120,6 +129,9 @@
           "wildberries",
           "aliexpress"
         ],
+        "server": "dns-local"
+      },
+      {
         "rule_set": [
           "category-gov-ru",
           "yandex",
@@ -265,6 +277,9 @@
           "moscowtimes.ru",
           "lesswrong.ru"
         ],
+        "outbound": "proxy"
+      },
+      {
         "domain_keyword": [
           "habr",
           "animego",
@@ -278,11 +293,20 @@
           "ikianime",
           "anilibria"
         ],
+        "outbound": "proxy"
+      },
+      {
         "rule_set": [
           "telegram",
           "google"
         ],
         "outbound": "proxy"
+      },
+      {
+        "ip_cidr": [
+          "{{SERVER_IP}}"
+        ],
+        "outbound": "direct"
       },
       {
         "domain_suffix": [
@@ -299,6 +323,9 @@
           "remanga.org",
           "shopstory.live"
         ],
+        "outbound": "direct"
+      },
+      {
         "domain_keyword": [
           "xn--",
           "miradres",
@@ -320,9 +347,9 @@
           "wildberries",
           "aliexpress"
         ],
-        "ip_cidr": [
-          "{{SERVER_IP}}"
-        ],
+        "outbound": "direct"
+      },
+      {
         "rule_set": [
           "category-gov-ru",
           "yandex",

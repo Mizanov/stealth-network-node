@@ -33,9 +33,14 @@ http {
     include                       mime.types;
     default_type                  application/octet-stream;
 
-    # Logging
-    access_log                    off;
-    error_log                     /dev/null;
+    # Logging & Diagnostics
+    log_format privacy_audit '$remote_addr - [$time_local] "$request_method $uri" '
+                             '$status $body_bytes_sent "$http_referer" '
+                             'rt=$request_time uct="$upstream_connect_time" '
+                             'uht="$upstream_header_time" urt="$upstream_response_time"';
+
+    access_log                    /var/log/nginx/access.log privacy_audit buffer=32k flush=5s;
+    error_log                     /var/log/nginx/error.log warn;
 
     # File cache
     open_file_cache               max=10000 inactive=60s;
@@ -118,8 +123,8 @@ http {
 
     # Site
     server {
-        listen                               443 ssl;
-        listen                               [::]:443 ssl;
+        listen                               443 ssl so_keepalive=on;
+        listen                               [::]:443 ssl so_keepalive=on;
         http2                                on;
         server_name                          {{DOMAIN}};
         # root                                 /var/www/html;
@@ -154,13 +159,21 @@ http {
             try_files $uri $uri/ /index.html;
         }
 
-        # Subscription
-        location ~ ^/{{SUBS_PATH}}/ {
+        # Subscription (Hardened: anti-enumeration, autoindex disabled, logs muted to protect secret tokens)
+        location ~ ^/{{SUBS_PATH}} {
             limit_req zone=limit_sub burst=20 nodelay;
             root /var/www;
+            autoindex off;
+            access_log off;
+            log_not_found off;
+
+            # Security and anti-caching headers for sensitive subscription tokens
             add_header Access-Control-Allow-Origin * always;
             add_header profile-update-interval 12 always;
             add_header subscription-userinfo "upload=0; download=0; total=1073741824000; expire=0" always;
+            add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
+            add_header Pragma "no-cache" always;
+            add_header X-Content-Type-Options "nosniff" always;
         }
 
         # Rule sets
@@ -169,20 +182,26 @@ http {
             add_header Content-disposition "attachment";
         }
 
-        # Trojan
+        # Trojan (VPN WebSocket proxy - access log muted to protect secret path)
         location = /{{TROJAN_PATH}} {
+            access_log off;
+            log_not_found off;
             set $ws_port 10443;
             try_files "" @ws_proxy;
         }
 
-        # VLESS
+        # VLESS (VPN WebSocket proxy - access log muted to protect secret path)
         location = /{{VLESS_PATH}} {
+            access_log off;
+            log_not_found off;
             set $ws_port 11443;
             try_files "" @ws_proxy;
         }
 
         # Reverse proxy
         location @ws_proxy {
+            access_log off;
+            log_not_found off;
             if ($http_upgrade != "websocket") {
                 return 404;
             }
@@ -205,10 +224,10 @@ http {
             proxy_set_header X-Forwarded-Host  $host;
             proxy_set_header X-Forwarded-Port  $server_port;
 
-            # Proxy timeouts
+            # Proxy timeouts (extended for persistent WebSocket VPN tunnels)
             proxy_connect_timeout              60s;
-            proxy_send_timeout                 60s;
-            proxy_read_timeout                 60s;
+            proxy_send_timeout                 1d;
+            proxy_read_timeout                 1d;
         }
 
         # gzip

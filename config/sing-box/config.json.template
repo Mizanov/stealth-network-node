@@ -100,11 +100,17 @@
           "ntc.party",
           "canva.com"
         ],
+        "outbound": "warp"
+      },
+      {
         "domain_keyword": [
           "xn--",
           "habr",
           "rutracker"
         ],
+        "outbound": "warp"
+      },
+      {
         "rule_set": [
           "geoip-ru",
           "category-gov-ru",
