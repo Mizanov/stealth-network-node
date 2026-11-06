@@ -102,6 +102,39 @@ class TestSingboxControlHelper(unittest.TestCase):
             if os.path.exists(test_dir):
                 os.rmdir(test_dir)
 
+    def test_rollback_missing_backup_fails(self):
+        """Rollback without backup file must fail with non-zero exit code."""
+        env = os.environ.copy()
+        env["SINGBOX_BACKUP_FILE"] = "/tmp/singbox_nonexistent_backup.json.bak"
+        env["SINGBOX_CONFIG_FILE"] = "/tmp/singbox_dummy_config.json"
+        res = subprocess.run([self.script_path, "rollback"], capture_output=True, text=True, env=env)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("Backup file", res.stderr)
+
+    def test_rollback_restores_file(self):
+        """Rollback must copy backup content to active config path."""
+        with tempfile.NamedTemporaryFile(prefix="singbox_backup_", delete=False) as bk:
+            bk.write(b'{"backup": true}')
+            bk_path = bk.name
+        with tempfile.NamedTemporaryFile(prefix="singbox_cfg_", delete=False) as cfg:
+            cfg.write(b'{"live": true}')
+            cfg_path = cfg.name
+
+        try:
+            env = os.environ.copy()
+            env["SINGBOX_BACKUP_FILE"] = bk_path
+            env["SINGBOX_CONFIG_FILE"] = cfg_path
+            env["SYSTEMCTL_BIN"] = "/bin/echo"
+            res = subprocess.run([self.script_path, "rollback"], capture_output=True, text=True, env=env)
+            self.assertEqual(res.returncode, 0)
+            with open(cfg_path, "rb") as f:
+                content = f.read()
+            self.assertEqual(content, b'{"backup": true}')
+        finally:
+            for p in (bk_path, cfg_path):
+                if os.path.exists(p):
+                    os.remove(p)
+
 
 class TestSystemdServiceHardening(unittest.TestCase):
     """Verifies that bot/incy-bot.service applies strict systemd sandboxing."""

@@ -26,6 +26,18 @@ from auth import (
     admin_required as auth_admin_required,
     AuthorizationConfigurationError
 )
+from config_manager import (
+    validate_username,
+    add_user_to_config,
+    delete_user_from_config,
+    list_users_from_config,
+    UserAlreadyExistsError,
+    UserNotFoundError,
+    InvalidUsernameError,
+    ConfigValidationError,
+    ConfigReloadError,
+    ConfigManagerError
+)
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -144,44 +156,41 @@ def get_web_proxy_info() -> dict:
 
 
 def create_user_singbox(username: str) -> Optional[dict]:
-    if not re.match(r"^[a-zA-Z0-9_-]+$", username):
-        return None
+    try:
+        valid_username = validate_username(username)
+    except InvalidUsernameError as e:
+        return {"error": str(e)}
+
+    new_uuid = str(uuid.uuid4())
+    new_pass = uuid.uuid4().hex[:16]
 
     try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        add_user_to_config(
+            username=valid_username,
+            new_uuid=new_uuid,
+            new_pass=new_pass,
+            config_path=CONFIG_JSON,
+            control_runner=run_privileged_control
+        )
+    except UserAlreadyExistsError:
+        return {"error": f"Пользователь {valid_username} уже существует!"}
+    except (ConfigValidationError, ConfigReloadError, ConfigManagerError) as e:
+        logger.error(f"Configuration mutation failed: {e}")
+        return {"error": f"Ошибка конфигурации Sing-box: {e}"}
+    except Exception as e:
+        logger.error(f"Unexpected error in create_user_singbox: {e}", exc_info=True)
+        return {"error": str(e)}
 
-        # Check existing user
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") in ("vless-in", "trojan-in"):
-                for u in ib.get("users", []):
-                    if u.get("name") == username:
-                        return {"error": f"Пользователь {username} уже существует!"}
-
-        new_uuid = str(uuid.uuid4())
-        new_pass = uuid.uuid4().hex[:16]
-
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") == "vless-in":
-                ib.setdefault("users", []).append({"name": username, "uuid": new_uuid})
-            elif ib.get("tag") == "trojan-in":
-                ib.setdefault("users", []).append({"name": username, "password": new_pass})
-
-        with open(CONFIG_JSON, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, indent=2, ensure_ascii=False)
-
-        # Reload sing-box core via restricted helper
-        reload_singbox()
-
+    try:
         os.makedirs(WWW_DIR, exist_ok=True)
 
         # 1. Base64 Incy / Happ / V2Ray subscription (.txt)
-        vless_link = f"vless://{new_uuid}@{DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F{VLESS_PATH}#{DOMAIN}-VLESS-{username}"
-        trojan_link = f"trojan://{new_pass}@{DOMAIN}:443?security=tls&type=ws&path=%2F{TROJAN_PATH}#{DOMAIN}-Trojan-{username}"
+        vless_link = f"vless://{new_uuid}@{DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F{VLESS_PATH}#{DOMAIN}-VLESS-{valid_username}"
+        trojan_link = f"trojan://{new_pass}@{DOMAIN}:443?security=tls&type=ws&path=%2F{TROJAN_PATH}#{DOMAIN}-Trojan-{valid_username}"
         sub_body = f"{vless_link}\n{trojan_link}\n"
         sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
 
-        sub_txt_file = f"{WWW_DIR}/{username}.txt"
+        sub_txt_file = f"{WWW_DIR}/{valid_username}.txt"
         with open(sub_txt_file, "w", encoding="utf-8") as f:
             f.write(sub_b64)
         os.chmod(sub_txt_file, 0o644)
@@ -195,7 +204,7 @@ def create_user_singbox(username: str) -> Optional[dict]:
                 if ob.get("tag") == "proxy":
                     ob["uuid"] = new_uuid
 
-            client_file = f"{WWW_DIR}/{username}-VLESS-CLIENT.json"
+            client_file = f"{WWW_DIR}/{valid_username}-VLESS-CLIENT.json"
             with open(client_file, "w", encoding="utf-8") as f:
                 json.dump(vless_client, f, indent=2, ensure_ascii=False)
             os.chmod(client_file, 0o644)
@@ -209,17 +218,17 @@ def create_user_singbox(username: str) -> Optional[dict]:
                 if ob.get("tag") == "proxy":
                     ob["password"] = new_pass
 
-            trj_file = f"{WWW_DIR}/{username}-TRJ-CLIENT.json"
+            trj_file = f"{WWW_DIR}/{valid_username}-TRJ-CLIENT.json"
             with open(trj_file, "w", encoding="utf-8") as f:
                 json.dump(trj_client, f, indent=2, ensure_ascii=False)
             os.chmod(trj_file, 0o644)
 
-        incy_sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}.txt"
-        singbox_json_url = f"https://{DOMAIN}/{SUBS_PATH}/{username}-VLESS-CLIENT.json"
+        incy_sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{valid_username}.txt"
+        singbox_json_url = f"https://{DOMAIN}/{SUBS_PATH}/{valid_username}-VLESS-CLIENT.json"
         incy_deeplink = f"incy://add/{incy_sub_url}"
 
         return {
-            "username": username,
+            "username": valid_username,
             "uuid": new_uuid,
             "incy_sub_url": incy_sub_url,
             "singbox_json_url": singbox_json_url,
@@ -228,53 +237,41 @@ def create_user_singbox(username: str) -> Optional[dict]:
             "trojan_link": trojan_link
         }
     except Exception as e:
-        logger.error(f"Error creating user: {e}", exc_info=True)
-        return {"error": str(e)}
+        logger.error(f"Error generating client profiles for {valid_username}: {e}", exc_info=True)
+        return {"error": f"Пользователь создан в ядре, но возникла ошибка при создании профилей: {e}"}
 
 
 def delete_user_singbox(username: str) -> bool:
     try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
+        valid_username = validate_username(username)
+    except InvalidUsernameError:
+        return False
 
-        found = False
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") in ("vless-in", "trojan-in"):
-                users = ib.get("users", [])
-                new_users = [u for u in users if u.get("name") != username]
-                if len(new_users) != len(users):
-                    ib["users"] = new_users
-                    found = True
-
-        if found:
-            with open(CONFIG_JSON, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            reload_singbox()
-
-        for f_name in (f"{username}.txt", f"{username}-VLESS-CLIENT.json", f"{username}-TRJ-CLIENT.json"):
-            p = f"{WWW_DIR}/{f_name}"
-            if os.path.exists(p):
-                os.remove(p)
-
-        return found
+    try:
+        delete_user_from_config(
+            username=valid_username,
+            config_path=CONFIG_JSON,
+            control_runner=run_privileged_control
+        )
+    except UserNotFoundError:
+        return False
     except Exception as e:
         logger.error(f"Error deleting user {username}: {e}")
         return False
 
+    for f_name in (f"{valid_username}.txt", f"{valid_username}-VLESS-CLIENT.json", f"{valid_username}-TRJ-CLIENT.json"):
+        p = f"{WWW_DIR}/{f_name}"
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+            except OSError:
+                pass
+
+    return True
+
 
 def get_users_list() -> list:
-    try:
-        with open(CONFIG_JSON, "r", encoding="utf-8") as f:
-            cfg = json.load(f)
-        users = []
-        for ib in cfg.get("inbounds", []):
-            if ib.get("tag") == "vless-in":
-                for u in ib.get("users", []):
-                    users.append(u.get("name"))
-        return sorted(list(set(users)))
-    except Exception as e:
-        logger.error(f"Error listing users: {e}")
-        return []
+    return list_users_from_config(config_path=CONFIG_JSON)
 
 
 def generate_qr(data: str) -> io.BytesIO:

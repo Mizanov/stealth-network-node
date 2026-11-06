@@ -277,7 +277,7 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 # Bot files & Venv
-cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" /opt/incy-bot/
+cp "$SCRIPT_DIR/bot/bot.py" "$SCRIPT_DIR/bot/auth.py" "$SCRIPT_DIR/bot/config_manager.py" /opt/incy-bot/
 python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
@@ -294,9 +294,12 @@ chmod 640 /opt/incy-bot/.env
 chown -R incy-bot:www-data "$WWW_DIR"
 chmod 770 "$WWW_DIR"
 
-# Sing-box config write permissions for incy-bot
-chown sing-box:incy-bot /etc/sing-box/config.json 2>/dev/null || chown root:incy-bot /etc/sing-box/config.json
-chmod 660 /etc/sing-box/config.json
+# Sing-box directory & config permissions for transactional atomic updates by incy-bot
+mkdir -p /etc/sing-box
+chown root:incy-bot /etc/sing-box
+chmod 775 /etc/sing-box
+chown sing-box:incy-bot /etc/sing-box/config.json 2>/dev/null || chown root:incy-bot /etc/sing-box/config.json 2>/dev/null || true
+chmod 660 /etc/sing-box/config.json 2>/dev/null || true
 
 # Systemd service deployment & verification
 cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service

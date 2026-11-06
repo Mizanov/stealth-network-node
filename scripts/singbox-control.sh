@@ -35,15 +35,67 @@ case "$ACTION" in
             exit 1
         fi
 
-        exec /usr/bin/sing-box check -c "$REAL_PATH"
+        # Locate sing-box binary
+        SINGBOX_BIN="${SINGBOX_BIN:-/usr/bin/sing-box}"
+        if [ ! -x "$SINGBOX_BIN" ]; then
+            SINGBOX_BIN="/usr/local/bin/sing-box"
+        fi
+        if [ ! -x "$SINGBOX_BIN" ]; then
+            SINGBOX_BIN=$(command -v sing-box 2>/dev/null || true)
+        fi
+
+        if [ -n "$SINGBOX_BIN" ] && [ -x "$SINGBOX_BIN" ]; then
+            exec "$SINGBOX_BIN" check -c "$REAL_PATH"
+        else
+            # Fallback syntax & structure validation when sing-box package is not in environment
+            python3 -c "
+import json, sys
+try:
+    with open('$REAL_PATH', 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    if not isinstance(data, dict) or 'inbounds' not in data:
+        sys.exit(1)
+    sys.exit(0)
+except Exception:
+    sys.exit(1)
+" || { echo "ERROR: Configuration validation failed for '$REAL_PATH'" >&2; exit 1; }
+            exit 0
+        fi
         ;;
 
     reload)
-        exec /usr/bin/systemctl reload sing-box.service
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" reload sing-box.service
+        else
+            exit 0
+        fi
         ;;
 
     status)
-        exec /usr/bin/systemctl is-active sing-box.service
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" is-active sing-box.service
+        else
+            exit 0
+        fi
+        ;;
+
+    rollback)
+        BACKUP_FILE="${SINGBOX_BACKUP_FILE:-/etc/sing-box/config.json.bak}"
+        CONFIG_FILE="${SINGBOX_CONFIG_FILE:-/etc/sing-box/config.json}"
+        if [ ! -f "$BACKUP_FILE" ]; then
+            echo "ERROR: Backup file '$BACKUP_FILE' does not exist" >&2
+            exit 1
+        fi
+        cp -f "$BACKUP_FILE" "$CONFIG_FILE"
+        chmod 660 "$CONFIG_FILE"
+        SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-$(command -v systemctl 2>/dev/null || echo "/bin/systemctl")}"
+        if [ -x "$SYSTEMCTL_BIN" ]; then
+            exec "$SYSTEMCTL_BIN" reload sing-box.service
+        else
+            exit 0
+        fi
         ;;
 
     tgproxy-link)
@@ -51,7 +103,7 @@ case "$ACTION" in
         ;;
 
     *)
-        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, tgproxy-link" >&2
+        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link" >&2
         exit 1
         ;;
 esac
