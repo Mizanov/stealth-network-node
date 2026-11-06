@@ -291,8 +291,8 @@ REALITY_PUBLIC_KEY=$(echo "$KEYS" | grep -i 'Public key:' | awk '{print $3}')
 REALITY_SHORT_ID=$(openssl rand -hex 8)
 REALITY_PORT=8443
 XHTTP_PORT=8444
-REALITY_DEST="dl.google.com:443"
-REALITY_SNI="dl.google.com"
+REALITY_DEST="127.0.0.1:443"
+REALITY_SNI="$MAIN_DOMAIN"
 XHTTP_PATH="xhttp"
 
 mkdir -p /etc/xray

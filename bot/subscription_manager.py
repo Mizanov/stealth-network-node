@@ -96,7 +96,7 @@ def create_or_update_subscription(
     xhttp_port: int = 8444,
     reality_public_key: str = "",
     reality_short_id: str = "",
-    reality_sni: str = "dl.google.com",
+    reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
@@ -130,18 +130,20 @@ def create_or_update_subscription(
         vless_ws_link = vless_link
         trojan_ws_link = trojan_link
 
+        effective_sni = reality_sni.strip() if reality_sni else domain
+
         if reality_public_key:
             vless_reality_link = (
                 f"vless://{vless_uuid}@{domain}:{reality_port}?"
                 f"security=reality&encryption=none&pbk={reality_public_key}&"
                 f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
-                f"sni={reality_sni}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
+                f"sni={effective_sni}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
             )
             vless_xhttp_link = (
                 f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
                 f"security=reality&encryption=none&pbk={reality_public_key}&"
                 f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
-                f"sni={reality_sni}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
+                f"sni={effective_sni}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
             )
             vless_ws_link = (
                 f"vless://{vless_uuid}@{domain}:443?"
@@ -279,7 +281,7 @@ def rotate_subscription_token(
     xhttp_port: int = 8444,
     reality_public_key: str = "",
     reality_short_id: str = "",
-    reality_sni: str = "dl.google.com",
+    reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
@@ -362,7 +364,7 @@ def sync_subscriptions_from_config(
     xhttp_port: int = 8444,
     reality_public_key: str = "",
     reality_short_id: str = "",
-    reality_sni: str = "dl.google.com",
+    reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",

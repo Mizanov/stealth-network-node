@@ -106,7 +106,8 @@ REALITY_PORT = int(os.getenv("REALITY_PORT", "8443").strip())
 XHTTP_PORT = int(os.getenv("XHTTP_PORT", "8444").strip())
 REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "").strip()
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "").strip()
-REALITY_SNI = os.getenv("REALITY_SNI", "dl.google.com").strip()
+REALITY_SNI = os.getenv("REALITY_SNI", "").strip() or DOMAIN
+REALITY_DEST = os.getenv("REALITY_DEST", "127.0.0.1:443").strip()
 XHTTP_PATH = os.getenv("XHTTP_PATH", "xhttp").strip()
 XRAY_CONFIG_JSON = os.getenv("XRAY_CONFIG_JSON", "/etc/xray/config.json").strip()
 

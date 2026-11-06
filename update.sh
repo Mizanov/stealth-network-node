@@ -168,8 +168,8 @@ if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
     REALITY_SHORT_ID=$(openssl rand -hex 8)
     REALITY_PORT="${REALITY_PORT:-8443}"
     XHTTP_PORT="${XHTTP_PORT:-8444}"
-    REALITY_DEST="${REALITY_DEST:-dl.google.com:443}"
-    REALITY_SNI="${REALITY_SNI:-dl.google.com}"
+    REALITY_DEST="${REALITY_DEST:-127.0.0.1:443}"
+    REALITY_SNI="${REALITY_SNI:-$MAIN_DOMAIN}"
     XHTTP_PATH="${XHTTP_PATH:-xhttp}"
 
     {
@@ -190,8 +190,8 @@ if [ ! -f /etc/xray/config.json ]; then
     info "Генерация базового файла конфигурации /etc/xray/config.json..."
     sed -e "s|{{REALITY_PORT}}|${REALITY_PORT:-8443}|g" \
         -e "s|{{XHTTP_PORT}}|${XHTTP_PORT:-8444}|g" \
-        -e "s|{{REALITY_DEST}}|${REALITY_DEST:-dl.google.com:443}|g" \
-        -e "s|{{REALITY_SNI}}|${REALITY_SNI:-dl.google.com}|g" \
+        -e "s|{{REALITY_DEST}}|${REALITY_DEST:-127.0.0.1:443}|g" \
+        -e "s|{{REALITY_SNI}}|${REALITY_SNI:-$MAIN_DOMAIN}|g" \
         -e "s|{{XHTTP_PATH}}|${XHTTP_PATH:-xhttp}|g" \
         -e "s|{{REALITY_PRIVATE_KEY}}|$REALITY_PRIVATE_KEY|g" \
         -e "s|{{REALITY_SHORT_ID}}|$REALITY_SHORT_ID|g" \
@@ -256,7 +256,7 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
-    -e "s|{{REALITY_SNI}}|${REALITY_SNI:-dl.google.com}|g" \
+    -e "s|{{REALITY_SNI}}|${REALITY_SNI:-$MAIN_DOMAIN}|g" \
     -e "s|{{REALITY_PUBLIC_KEY}}|${REALITY_PUBLIC_KEY:-}|g" \
     -e "s|{{REALITY_SHORT_ID}}|${REALITY_SHORT_ID:-}|g" \
     -e "s|8443|${REALITY_PORT:-8443}|g" \
