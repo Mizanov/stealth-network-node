@@ -34,24 +34,39 @@ verify_archive() {
         return 1
     fi
 
-    echo "[*] Checking for Path Traversal and absolute paths..."
-    # 1. Reject absolute paths starting with /
-    if tar -tzf "$archive_path" | grep -qE '^/'; then
-        echo "[-] Security Error: Archive contains absolute paths starting with '/'. Extraction blocked!" >&2
-        return 1
-    fi
-
-    # 2. Reject path traversal (..)
-    if tar -tzf "$archive_path" | grep -qE '(^|/)\.\.(/|$)'; then
-        echo "[-] Security Error: Archive contains path traversal components ('..'). Extraction blocked!" >&2
-        return 1
-    fi
-
-    echo "[*] Auditing symlinks and hardlinks for escape attempts..."
-    # 3. Reject symlinks or hardlinks pointing to absolute paths or traversing outwards
-    if tar -tvzf "$archive_path" 2>/dev/null | grep -E '^[l|h]' | grep -qE '(->\s*/|->\s*.*\.\.|link to\s*/|link to\s*.*\.\.)'; then
-        echo "[-] Security Error: Archive contains dangerous symlinks/hardlinks pointing to absolute paths or traversing directories. Extraction blocked!" >&2
-        return 1
+    echo "[*] Auditing member paths, symlinks, and hardlinks for escape attempts..."
+    if command -v python3 >/dev/null 2>&1; then
+        if ! python3 -c '
+import os, sys, tarfile
+archive = sys.argv[1]
+try:
+    with tarfile.open(archive, "r:*") as tar:
+        for m in tar.getmembers():
+            norm_name = os.path.normpath(m.name)
+            if m.name.startswith("/") or norm_name.startswith("..") or "/../" in m.name or m.name.startswith("../"):
+                print(f"[-] Security Error: Archive contains absolute paths or path traversal: {m.name}", file=sys.stderr)
+                sys.exit(1)
+            if m.issym() or m.islnk():
+                if m.linkname.startswith("/"):
+                    print(f"[-] Security Error: Archive contains dangerous symlinks/hardlinks pointing to absolute path: {m.name} -> {m.linkname}", file=sys.stderr)
+                    sys.exit(1)
+                resolved = os.path.normpath(os.path.join(os.path.dirname(m.name), m.linkname))
+                if resolved.startswith("..") or resolved.startswith("/"):
+                    print(f"[-] Security Error: Archive contains dangerous symlinks/hardlinks traversing outwards: {m.name} -> {m.linkname}", file=sys.stderr)
+                    sys.exit(1)
+except Exception as e:
+    print(f"[-] Error parsing archive: {e}", file=sys.stderr)
+    sys.exit(1)
+' "$archive_path"; then
+            echo "[-] Security Audit Failed: Archive contains unsafe paths. Extraction blocked!" >&2
+            return 1
+        fi
+    else
+        # Fallback basic checks if python3 is not available
+        if tar -tzf "$archive_path" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+            echo "[-] Security Error: Archive contains path traversal components ('..'). Extraction blocked!" >&2
+            return 1
+        fi
     fi
 
     local file_count
