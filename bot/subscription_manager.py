@@ -131,12 +131,14 @@ def create_or_update_subscription(
     www_dir: str,
     reality_port: int = 8443,
     xhttp_port: int = 8444,
+    masque_port: int = 8445,
     reality_public_key: str = "",
     reality_short_id: str = "",
     reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
+    masque_template: str = "/opt/incy-bot/template-masque.json",
     registry_path: str = DEFAULT_REGISTRY_PATH,
     lock_path: str = DEFAULT_LOCK_PATH
 ) -> Dict[str, Any]:
@@ -190,9 +192,14 @@ def create_or_update_subscription(
                 f"trojan://{trojan_pass}@{domain}:443?"
                 f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
             )
-            sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
+            masque_link = (
+                f"masque://{username}:{trojan_pass}@{domain}:{masque_port}?"
+                f"sni={domain}#🌐 [IETF] MASQUE-TLS"
+            )
+            sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{masque_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
         else:
-            sub_body = f"{vless_link}\n{trojan_link}\n"
+            masque_link = f"masque://{username}:{trojan_pass}@{domain}:{masque_port}?sni={domain}#🌐 [IETF] MASQUE-TLS"
+            sub_body = f"{vless_link}\n{trojan_link}\n{masque_link}\n"
 
         sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
 
@@ -236,6 +243,54 @@ def create_or_update_subscription(
             except Exception as e:
                 logger.error("Failed to generate Trojan client json: %s", e)
 
+        # 4. MASQUE client template
+        masque_json_path = os.path.join(www_dir, f"{token}-masque.json")
+        if os.path.exists(masque_template):
+            try:
+                with open(masque_template, "r", encoding="utf-8") as f:
+                    masque_content = f.read()
+                masque_content = masque_content.replace("{{DOMAIN}}", domain)
+                masque_content = masque_content.replace("{{MASQUE_PORT}}", str(masque_port))
+                masque_content = masque_content.replace("{{USER_NAME}}", username)
+                masque_content = masque_content.replace("{{USER_PASS}}", trojan_pass)
+                with open(masque_json_path, "w", encoding="utf-8") as f:
+                    f.write(masque_content)
+                os.chmod(masque_json_path, 0o644)
+            except Exception as e:
+                logger.error("Failed to generate MASQUE client json: %s", e)
+        else:
+            try:
+                fallback_masque = {
+                    "log": {"loglevel": "warning"},
+                    "inbounds": [
+                        {"tag": "socks-in", "port": 10808, "listen": "127.0.0.1", "protocol": "socks", "settings": {"auth": "noauth", "udp": True}},
+                        {"tag": "http-in", "port": 10809, "listen": "127.0.0.1", "protocol": "http"}
+                    ],
+                    "outbounds": [
+                        {
+                            "tag": "proxy-masque",
+                            "protocol": "masque",
+                            "settings": {
+                                "address": domain,
+                                "port": masque_port,
+                                "email": username,
+                                "pass": trojan_pass
+                            },
+                            "streamSettings": {
+                                "network": "masque",
+                                "security": "tls",
+                                "tlsSettings": {"serverName": domain}
+                            }
+                        },
+                        {"tag": "direct", "protocol": "freedom"}
+                    ]
+                }
+                with open(masque_json_path, "w", encoding="utf-8") as f:
+                    json.dump(fallback_masque, f, indent=2, ensure_ascii=False)
+                os.chmod(masque_json_path, 0o644)
+            except Exception as e:
+                logger.error("Failed to generate fallback MASQUE client json: %s", e)
+
         # Save to registry
         registry[username] = {
             "token": token,
@@ -247,6 +302,7 @@ def create_or_update_subscription(
 
         sub_url = f"https://{domain}/{subs_path}/{token}.txt"
         singbox_json_url = f"https://{domain}/{subs_path}/{token}-vless.json"
+        masque_json_url = f"https://{domain}/{subs_path}/{token}-masque.json"
         deeplink = f"incy://add/{sub_url}"
 
         return {
@@ -255,10 +311,12 @@ def create_or_update_subscription(
             "vless_uuid": vless_uuid,
             "sub_url": sub_url,
             "singbox_json_url": singbox_json_url,
+            "masque_json_url": masque_json_url,
             "deeplink": deeplink,
             "vless_link": vless_reality_link if reality_public_key else vless_link,
             "vless_reality_link": vless_reality_link,
             "vless_xhttp_link": vless_xhttp_link,
+            "masque_link": masque_link,
             "vless_ws_link": vless_ws_link,
             "trojan_link": trojan_ws_link
         }
@@ -290,6 +348,7 @@ def get_subscription_info(
         token = entry["token"]
         sub_url = f"https://{domain}/{subs_path}/{token}.txt"
         singbox_json_url = f"https://{domain}/{subs_path}/{token}-vless.json"
+        masque_json_url = f"https://{domain}/{subs_path}/{token}-masque.json"
         deeplink = f"incy://add/{sub_url}"
 
         return {
@@ -298,6 +357,7 @@ def get_subscription_info(
             "vless_uuid": entry.get("vless_uuid", ""),
             "sub_url": sub_url,
             "singbox_json_url": singbox_json_url,
+            "masque_json_url": masque_json_url,
             "deeplink": deeplink,
             "updated_at": entry.get("updated_at", "")
         }
@@ -318,12 +378,14 @@ def rotate_subscription_token(
     www_dir: str,
     reality_port: int = 8443,
     xhttp_port: int = 8444,
+    masque_port: int = 8445,
     reality_public_key: str = "",
     reality_short_id: str = "",
     reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
+    masque_template: str = "/opt/incy-bot/template-masque.json",
     config_path: Optional[str] = None,
     registry_path: str = DEFAULT_REGISTRY_PATH,
     lock_path: str = DEFAULT_LOCK_PATH
@@ -381,12 +443,14 @@ def rotate_subscription_token(
         www_dir=www_dir,
         reality_port=reality_port,
         xhttp_port=xhttp_port,
+        masque_port=masque_port,
         reality_public_key=reality_public_key,
         reality_short_id=reality_short_id,
         reality_sni=reality_sni,
         xhttp_path=xhttp_path,
         vless_template=vless_template,
         trojan_template=trojan_template,
+        masque_template=masque_template,
         registry_path=registry_path,
         lock_path=lock_path
     )
@@ -401,12 +465,14 @@ def sync_subscriptions_from_config(
     www_dir: str,
     reality_port: int = 8443,
     xhttp_port: int = 8444,
+    masque_port: int = 8445,
     reality_public_key: str = "",
     reality_short_id: str = "",
     reality_sni: str = "",
     xhttp_path: str = "xhttp",
     vless_template: str = "/opt/incy-bot/template-vless.json",
     trojan_template: str = "/opt/incy-bot/template-trj.json",
+    masque_template: str = "/opt/incy-bot/template-masque.json",
     registry_path: str = DEFAULT_REGISTRY_PATH,
     lock_path: str = DEFAULT_LOCK_PATH
 ) -> int:
@@ -468,12 +534,14 @@ def sync_subscriptions_from_config(
                 www_dir=www_dir,
                 reality_port=reality_port,
                 xhttp_port=xhttp_port,
+                masque_port=masque_port,
                 reality_public_key=reality_public_key,
                 reality_short_id=reality_short_id,
                 reality_sni=reality_sni,
                 xhttp_path=xhttp_path,
                 vless_template=vless_template,
                 trojan_template=trojan_template,
+                masque_template=masque_template,
                 registry_path=registry_path,
                 lock_path=lock_path
             )
@@ -520,6 +588,21 @@ def sync_subscriptions_from_config(
                     except Exception as e:
                         logger.warning("Could not refresh Trojan client json for %s: %s", user, e)
 
+                if os.path.exists(masque_template):
+                    try:
+                        masque_json_path = os.path.join(www_dir, f"{token}-masque.json")
+                        with open(masque_template, "r", encoding="utf-8") as f:
+                            masque_content = f.read()
+                        masque_content = masque_content.replace("{{DOMAIN}}", domain)
+                        masque_content = masque_content.replace("{{MASQUE_PORT}}", str(masque_port))
+                        masque_content = masque_content.replace("{{USER_NAME}}", user)
+                        masque_content = masque_content.replace("{{USER_PASS}}", pw)
+                        with open(masque_json_path, "w", encoding="utf-8") as f:
+                            f.write(masque_content)
+                        os.chmod(masque_json_path, 0o644)
+                    except Exception as e:
+                        logger.warning("Could not refresh MASQUE client json for %s: %s", user, e)
+
     return migrated_count
 
 
@@ -559,7 +642,7 @@ def _cleanup_token_files(token: str, www_dir: str):
     if not token or not www_dir or not os.path.exists(www_dir):
         return
 
-    for suffix in (".txt", "-vless.json", "-trj.json", "-VLESS-CLIENT.json", "-TRJ-CLIENT.json"):
+    for suffix in (".txt", "-vless.json", "-trj.json", "-masque.json", "-VLESS-CLIENT.json", "-TRJ-CLIENT.json"):
         path = os.path.join(www_dir, f"{token}{suffix}")
         if os.path.exists(path):
             try:

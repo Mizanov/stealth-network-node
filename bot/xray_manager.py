@@ -58,22 +58,34 @@ def list_users_from_xray(config_path: str = DEFAULT_XRAY_CONFIG) -> List[str]:
             email = c.get("email")
             if email:
                 users.add(email)
+        for u in ib.get("settings", {}).get("users", []):
+            email = u.get("email")
+            if email:
+                users.add(email)
     return sorted(list(users))
 
 
-def add_user_to_xray(config_data: Dict[str, Any], username: str, user_uuid: str) -> Dict[str, Any]:
+def add_user_to_xray(
+    config_data: Dict[str, Any],
+    username: str,
+    user_uuid: str,
+    user_pass: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Adds user to both reality-vision and reality-xhttp inbounds in Xray config.
+    Adds user to reality-vision, reality-xhttp, and masque inbounds in Xray config.
     """
+    effective_pass = user_pass or user_uuid
     found_inbounds = False
     for ib in config_data.get("inbounds", []):
         tag = ib.get("tag", "")
+        proto = ib.get("protocol", "")
         stream = ib.get("streamSettings", {})
         network = stream.get("network", "")
         security = stream.get("security", "")
 
         is_vision = (tag == "vless-reality-vision-in") or (network == "tcp" and security == "reality")
         is_xhttp = (tag == "vless-reality-xhttp-in") or (network == "xhttp" and security == "reality")
+        is_masque = (tag == "masque-in") or (proto == "masque") or (network == "masque")
 
         if is_vision:
             found_inbounds = True
@@ -93,22 +105,72 @@ def add_user_to_xray(config_data: Dict[str, Any], username: str, user_uuid: str)
                     "id": user_uuid,
                     "email": username
                 })
+        elif is_masque:
+            found_inbounds = True
+            users = ib.setdefault("settings", {}).setdefault("users", [])
+            if not any(u.get("email") == username for u in users):
+                users.append({
+                    "email": username,
+                    "pass": effective_pass
+                })
 
     if not found_inbounds:
-        logger.warning("No matching REALITY inbounds found in Xray configuration to add user '%s'.", username)
+        logger.warning("No matching inbounds found in Xray configuration to add user '%s'.", username)
 
     return config_data
 
 
 def delete_user_from_xray(config_data: Dict[str, Any], username: str) -> Dict[str, Any]:
     """
-    Removes user from all inbounds in Xray config.
+    Removes user from all inbounds in Xray config (both clients and users arrays).
     """
     for ib in config_data.get("inbounds", []):
-        clients = ib.get("settings", {}).get("clients", [])
-        ib.setdefault("settings", {})["clients"] = [
-            c for c in clients if c.get("email") != username
-        ]
+        settings = ib.setdefault("settings", {})
+        if "clients" in settings:
+            settings["clients"] = [
+                c for c in settings["clients"] if c.get("email") != username
+            ]
+        if "users" in settings:
+            settings["users"] = [
+                u for u in settings["users"] if u.get("email") != username
+            ]
+    return config_data
+
+
+def ensure_xray_masque_config(
+    config_data: Dict[str, Any],
+    domain: str,
+    masque_port: int = 8445
+) -> Dict[str, Any]:
+    """
+    Ensures that Xray configuration contains the MASQUE (CONNECT-IP over HTTP/3)
+    inbound listening on the given port with Let's Encrypt TLS certificates.
+    """
+    inbounds = config_data.setdefault("inbounds", [])
+    has_masque = any(ib.get("tag") == "masque-in" or ib.get("protocol") == "masque" for ib in inbounds)
+    if not has_masque:
+        inbounds.append({
+            "tag": "masque-in",
+            "port": masque_port,
+            "listen": "0.0.0.0",
+            "protocol": "masque",
+            "settings": {
+                "address": ["10.13.0.1/24"],
+                "users": []
+            },
+            "streamSettings": {
+                "network": "masque",
+                "security": "tls",
+                "tlsSettings": {
+                    "certificates": [
+                        {
+                            "certificateFile": f"/etc/letsencrypt/live/{domain}/fullchain.pem",
+                            "keyFile": f"/etc/letsencrypt/live/{domain}/privkey.pem"
+                        }
+                    ]
+                }
+            }
+        })
     return config_data
 
 

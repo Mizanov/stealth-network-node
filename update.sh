@@ -168,6 +168,7 @@ if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
     REALITY_SHORT_ID=$(openssl rand -hex 8)
     REALITY_PORT="${REALITY_PORT:-8443}"
     XHTTP_PORT="${XHTTP_PORT:-8444}"
+    MASQUE_PORT="${MASQUE_PORT:-8445}"
     REALITY_DEST="${REALITY_DEST:-127.0.0.1:443}"
     REALITY_SNI="${REALITY_SNI:-$MAIN_DOMAIN}"
     XHTTP_PATH="${XHTTP_PATH:-xhttp}"
@@ -175,6 +176,7 @@ if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
     {
         echo "REALITY_PORT=$REALITY_PORT"
         echo "XHTTP_PORT=$XHTTP_PORT"
+        echo "MASQUE_PORT=$MASQUE_PORT"
         echo "REALITY_DEST=$REALITY_DEST"
         echo "REALITY_SNI=$REALITY_SNI"
         echo "XHTTP_PATH=$XHTTP_PATH"
@@ -185,11 +187,19 @@ if [ -z "${REALITY_PUBLIC_KEY:-}" ] || [ -z "${REALITY_PRIVATE_KEY:-}" ]; then
     ok "Ключи REALITY сгенерированы и сохранены в $ENV_FILE."
 fi
 
+# Ensure MASQUE_PORT is present in .env
+if ! grep -q "^MASQUE_PORT=" "$ENV_FILE"; then
+    echo "MASQUE_PORT=${MASQUE_PORT:-8445}" >> "$ENV_FILE"
+fi
+MASQUE_PORT="${MASQUE_PORT:-8445}"
+
 mkdir -p /etc/xray
 if [ ! -f /etc/xray/config.json ]; then
     info "Генерация базового файла конфигурации /etc/xray/config.json..."
     sed -e "s|{{REALITY_PORT}}|${REALITY_PORT:-8443}|g" \
         -e "s|{{XHTTP_PORT}}|${XHTTP_PORT:-8444}|g" \
+        -e "s|{{MASQUE_PORT}}|${MASQUE_PORT:-8445}|g" \
+        -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
         -e "s|{{REALITY_DEST}}|${REALITY_DEST:-127.0.0.1:443}|g" \
         -e "s|{{REALITY_SNI}}|${REALITY_SNI:-$MAIN_DOMAIN}|g" \
         -e "s|{{XHTTP_PATH}}|${XHTTP_PATH:-xhttp}|g" \
@@ -203,7 +213,7 @@ if [ -f /etc/sing-box/config.json ] && [ -f /etc/xray/config.json ]; then
     python3 -c "
 import os, sys, json
 sys.path.insert(0, '$SCRIPT_DIR/bot')
-from xray_manager import ensure_xray_stats_config
+from xray_manager import ensure_xray_stats_config, ensure_xray_masque_config
 
 try:
     with open('/etc/sing-box/config.json', 'r') as f:
@@ -214,23 +224,39 @@ try:
     # 1. Ensure Stats API & Policy configuration
     xr = ensure_xray_stats_config(xr)
 
-    # 2. Sync users
-    users = {}
+    # 2. Ensure MASQUE Inbound configuration
+    xr = ensure_xray_masque_config(xr, '$MAIN_DOMAIN', ${MASQUE_PORT:-8445})
+
+    # 3. Sync users
+    vless_users = {}
+    trojan_users = {}
     for ib in sb.get('inbounds', []):
-        if ib.get('type') == 'vless' or ib.get('tag') == 'vless-in':
+        tag = ib.get('tag', '')
+        if ib.get('type') == 'vless' or tag == 'vless-in':
             for u in ib.get('users', []):
                 if u.get('name') and u.get('uuid'):
-                    users[u['name']] = u['uuid']
+                    vless_users[u['name']] = u['uuid']
+        elif ib.get('type') == 'trojan' or tag == 'trojan-in':
+            for u in ib.get('users', []):
+                if u.get('name') and u.get('password'):
+                    trojan_users[u['name']] = u['password']
 
     for ib in xr.get('inbounds', []):
         tag = ib.get('tag', '')
-        clients = ib.setdefault('settings', {}).setdefault('clients', [])
-        for uname, uuid in users.items():
-            if not any(c.get('email') == uname or c.get('id') == uuid for c in clients):
-                if tag == 'vless-reality-vision-in':
-                    clients.append({'id': uuid, 'flow': 'xtls-rprx-vision', 'email': uname})
-                elif tag == 'vless-reality-xhttp-in':
-                    clients.append({'id': uuid, 'email': uname})
+        if tag == 'masque-in':
+            m_users = ib.setdefault('settings', {}).setdefault('users', [])
+            for uname in set(vless_users.keys()) | set(trojan_users.keys()):
+                upass = trojan_users.get(uname, vless_users.get(uname, ''))
+                if upass and not any(u.get('email') == uname for u in m_users):
+                    m_users.append({'email': uname, 'pass': upass})
+        else:
+            clients = ib.setdefault('settings', {}).setdefault('clients', [])
+            for uname, uuid in vless_users.items():
+                if not any(c.get('email') == uname or c.get('id') == uuid for c in clients):
+                    if tag == 'vless-reality-vision-in':
+                        clients.append({'id': uuid, 'flow': 'xtls-rprx-vision', 'email': uname})
+                    elif tag == 'vless-reality-xhttp-in':
+                        clients.append({'id': uuid, 'email': uname})
 
     with open('/etc/xray/config.json', 'w') as f:
         json.dump(xr, f, indent=2)
@@ -250,10 +276,12 @@ systemctl daemon-reload
 systemctl enable xray.service >/dev/null 2>&1 || true
 systemctl restart xray.service
 
-# Configure UFW rules for REALITY ports
+# Configure UFW rules for REALITY and MASQUE ports
 if command -v ufw >/dev/null 2>&1; then
     ufw allow "${REALITY_PORT:-8443}/tcp" comment 'Xray REALITY Vision' >/dev/null 2>&1 || true
     ufw allow "${XHTTP_PORT:-8444}/tcp" comment 'Xray REALITY XHTTP' >/dev/null 2>&1 || true
+    ufw allow "${MASQUE_PORT:-8445}/tcp" comment 'MASQUE TCP' >/dev/null 2>&1 || true
+    ufw allow "${MASQUE_PORT:-8445}/udp" comment 'MASQUE UDP (HTTP/3 QUIC)' >/dev/null 2>&1 || true
 fi
 ok "Служба Xray-Core настроена и запущена."
 
@@ -279,9 +307,13 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{MASQUE_PORT}}|${MASQUE_PORT:-8445}|g" \
+    "$SCRIPT_DIR/config/templates/template-masque.json" > /opt/incy-bot/template-masque.json
+
 chown incy-bot:incy-bot /opt/incy-bot/template-*.json
 chmod 644 /opt/incy-bot/template-*.json
-ok "Шаблоны клиентов обновлены с учётом OR-маршрутизации и REALITY."
+ok "Шаблоны клиентов обновлены с учётом OR-маршрутизации, REALITY и MASQUE."
 
 # 9. Update Bot Code & Python Dependencies
 info "Обновление кода Telegram-бота..."

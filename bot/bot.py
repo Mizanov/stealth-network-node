@@ -53,6 +53,7 @@ from xray_manager import (
     delete_user_from_xray,
     atomic_modify_xray_config,
     ensure_xray_stats_config,
+    ensure_xray_masque_config,
     XrayConfigError
 )
 from stats_manager import (
@@ -113,11 +114,13 @@ SINGBOX_CONTROL = os.getenv("SINGBOX_CONTROL_BIN", "/usr/local/bin/singbox-contr
 # Dual-transport modern VPN: Xray REALITY & XHTTP settings
 REALITY_PORT = int(os.getenv("REALITY_PORT", "8443").strip())
 XHTTP_PORT = int(os.getenv("XHTTP_PORT", "8444").strip())
+MASQUE_PORT = int(os.getenv("MASQUE_PORT", "8445").strip())
 REALITY_PUBLIC_KEY = os.getenv("REALITY_PUBLIC_KEY", "").strip()
 REALITY_SHORT_ID = os.getenv("REALITY_SHORT_ID", "").strip()
 REALITY_SNI = os.getenv("REALITY_SNI", "").strip() or DOMAIN
 REALITY_DEST = os.getenv("REALITY_DEST", "127.0.0.1:443").strip()
 XHTTP_PATH = os.getenv("XHTTP_PATH", "xhttp").strip()
+MASQUE_TEMPLATE = os.getenv("MASQUE_TEMPLATE", "/opt/incy-bot/template-masque.json").strip()
 XRAY_CONFIG_JSON = os.getenv("XRAY_CONFIG_JSON", "/etc/xray/config.json").strip()
 
 if not TOKEN:
@@ -217,11 +220,11 @@ def create_user_singbox(username: str) -> Optional[dict]:
         logger.error(f"Unexpected error in create_user_singbox: {e}", exc_info=True)
         return {"error": str(e)}
 
-    # Synchronize with Xray-core (VLESS REALITY + Vision / XHTTP)
+    # Synchronize with Xray-core (VLESS REALITY + Vision / XHTTP / MASQUE)
     if os.path.exists(XRAY_CONFIG_JSON):
         try:
             atomic_modify_xray_config(
-                mutation_fn=lambda cfg: add_user_to_xray(cfg, valid_username, new_uuid),
+                mutation_fn=lambda cfg: add_user_to_xray(cfg, valid_username, new_uuid, user_pass=new_pass),
                 config_path=XRAY_CONFIG_JSON,
                 control_runner=run_privileged_control
             )
@@ -249,12 +252,14 @@ def create_user_singbox(username: str) -> Optional[dict]:
             www_dir=WWW_DIR,
             reality_port=REALITY_PORT,
             xhttp_port=XHTTP_PORT,
+            masque_port=MASQUE_PORT,
             reality_public_key=REALITY_PUBLIC_KEY,
             reality_short_id=REALITY_SHORT_ID,
             reality_sni=REALITY_SNI,
             xhttp_path=XHTTP_PATH,
             vless_template=VLESS_TEMPLATE,
-            trojan_template=TROJAN_TEMPLATE
+            trojan_template=TROJAN_TEMPLATE,
+            masque_template=MASQUE_TEMPLATE
         )
 
         return {
@@ -263,10 +268,12 @@ def create_user_singbox(username: str) -> Optional[dict]:
             "token": sub_info["token"],
             "incy_sub_url": sub_info["sub_url"],
             "singbox_json_url": sub_info["singbox_json_url"],
+            "masque_json_url": sub_info.get("masque_json_url", ""),
             "incy_deeplink": sub_info["deeplink"],
             "vless_link": sub_info["vless_link"],
             "vless_reality_link": sub_info.get("vless_reality_link", ""),
             "vless_xhttp_link": sub_info.get("vless_xhttp_link", ""),
+            "masque_link": sub_info.get("masque_link", ""),
             "vless_ws_link": sub_info.get("vless_ws_link", ""),
             "trojan_link": sub_info["trojan_link"]
         }
@@ -382,8 +389,10 @@ async def process_new_user(update: Update, username: str):
     vless_link = res["vless_link"]
     reality_link = res.get("vless_reality_link", "")
     xhttp_link = res.get("vless_xhttp_link", "")
+    masque_link = res.get("masque_link", "")
     incy_sub_url = res["incy_sub_url"]
     singbox_json_url = res["singbox_json_url"]
+    masque_json_url = res.get("masque_json_url", "")
     incy_deeplink = res["incy_deeplink"]
 
     if reality_link:
@@ -391,7 +400,7 @@ async def process_new_user(update: Update, username: str):
             f"✅ **Ключ успешно создан!**\n\n"
             f"👤 **Пользователь:** `{username}`\n"
             f"🔑 **UUID:** `{res['uuid']}`\n\n"
-            f"📋 **Универсальная подписка (4 в 1):**\n"
+            f"📋 **Универсальная подписка (5 в 1):**\n"
             f"`{incy_sub_url}`\n\n"
             f"📦 **Конфиг Sing-Box JSON:**\n"
             f"`{singbox_json_url}`\n\n"
@@ -409,9 +418,13 @@ async def process_new_user(update: Update, username: str):
             f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
         )
 
+    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=singbox_json_url)]
+    if masque_json_url:
+        json_buttons.append(InlineKeyboardButton("🌐 MASQUE JSON", url=masque_json_url))
+
     keyboard = [
         [InlineKeyboardButton("🌐 Открыть подписку", url=incy_sub_url)],
-        [InlineKeyboardButton("📦 Sing-Box JSON", url=singbox_json_url)],
+        json_buttons,
         [InlineKeyboardButton("🗑 Удалить этот ключ", callback_data=f"del_{username}")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -444,7 +457,9 @@ async def process_new_user(update: Update, username: str):
             f"`{reality_link}`\n\n"
             f"2️⃣ **[Резерв] VLESS + XHTTP + REALITY:**\n"
             f"`{xhttp_link}`\n\n"
-            f"3️⃣ **[WS Legacy] VLESS + WS + TLS:**\n"
+            f"3️⃣ **[IETF QUIC] MASQUE TLS (HTTP/3 UDP + TCP):**\n"
+            f"`{masque_link}`\n\n"
+            f"4️⃣ **[WS Legacy] VLESS + WS + TLS:**\n"
             f"`{vless_link}`"
         )
     else:
@@ -649,6 +664,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if sub_info:
             sub_url = sub_info["sub_url"]
             sb_json = sub_info["singbox_json_url"]
+            masque_json = sub_info.get("masque_json_url", "")
             token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
             msg = (
                 f"👤 **Пользователь:** `{username}`\n"
@@ -660,8 +676,13 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
                 f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
             )
+            json_row = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)]
+            if masque_json:
+                json_row.append(InlineKeyboardButton("🌐 MASQUE JSON", url=masque_json))
+
             keyboard = [
                 [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
+                json_row,
                 [InlineKeyboardButton("🔄 Ротировать токен", callback_data=f"rot_{username}")],
                 [InlineKeyboardButton("🔄 Сбросить трафик", callback_data=f"rst_{username}")],
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
@@ -704,12 +725,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 www_dir=WWW_DIR,
                 reality_port=REALITY_PORT,
                 xhttp_port=XHTTP_PORT,
+                masque_port=MASQUE_PORT,
                 reality_public_key=REALITY_PUBLIC_KEY,
                 reality_short_id=REALITY_SHORT_ID,
                 reality_sni=REALITY_SNI,
                 xhttp_path=XHTTP_PATH,
                 vless_template=VLESS_TEMPLATE,
                 trojan_template=TROJAN_TEMPLATE,
+                masque_template=MASQUE_TEMPLATE,
                 config_path=CONFIG_JSON
             )
             new_sub_url = new_sub["sub_url"]
@@ -722,8 +745,14 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📋 **Новая ссылка на подписку:**\n`{new_sub_url}`\n\n"
                 f"📦 **Конфиг Sing-Box:**\n`{new_sub['singbox_json_url']}`"
             )
+            rot_buttons = [InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url)]
+            if new_sub.get("masque_json_url"):
+                rot_buttons = [
+                    InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url),
+                    InlineKeyboardButton("🌐 MASQUE JSON", url=new_sub["masque_json_url"])
+                ]
             keyboard = [
-                [InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url)],
+                rot_buttons,
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
             await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
@@ -779,29 +808,36 @@ def main():
             www_dir=WWW_DIR,
             reality_port=REALITY_PORT,
             xhttp_port=XHTTP_PORT,
+            masque_port=MASQUE_PORT,
             reality_public_key=REALITY_PUBLIC_KEY,
             reality_short_id=REALITY_SHORT_ID,
             reality_sni=REALITY_SNI,
             xhttp_path=XHTTP_PATH,
             vless_template=VLESS_TEMPLATE,
-            trojan_template=TROJAN_TEMPLATE
+            trojan_template=TROJAN_TEMPLATE,
+            masque_template=MASQUE_TEMPLATE
         )
         if migrated > 0:
             logger.info("Migrated %d legacy user(s) to secure tokenized subscriptions.", migrated)
     except Exception as sync_err:
         logger.warning("Subscription synchronization encountered a non-fatal error: %s", sync_err)
 
-    # Automatically ensure Xray configuration includes traffic statistics API & policy
+    # Automatically ensure Xray configuration includes traffic statistics API, policy & MASQUE inbound
     if os.path.exists(XRAY_CONFIG_JSON):
         try:
+            def _setup_xray_features(cfg):
+                cfg = ensure_xray_stats_config(cfg)
+                cfg = ensure_xray_masque_config(cfg, DOMAIN, MASQUE_PORT)
+                return cfg
+
             atomic_modify_xray_config(
-                mutation_fn=ensure_xray_stats_config,
+                mutation_fn=_setup_xray_features,
                 config_path=XRAY_CONFIG_JSON,
                 control_runner=run_privileged_control
             )
-            logger.info("Xray traffic statistics API configuration verified.")
+            logger.info("Xray traffic statistics API and MASQUE inbound configuration verified.")
         except Exception as xray_stats_err:
-            logger.warning("Could not automatically configure Xray stats: %s", xray_stats_err)
+            logger.warning("Could not automatically configure Xray features: %s", xray_stats_err)
 
     app = Application.builder().token(TOKEN).build()
 

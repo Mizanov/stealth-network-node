@@ -102,6 +102,30 @@
           "quic"
         ]
       }
+    },
+    {
+      "tag": "masque-in",
+      "port": {{MASQUE_PORT}},
+      "listen": "0.0.0.0",
+      "protocol": "masque",
+      "settings": {
+        "address": [
+          "10.13.0.1/24"
+        ],
+        "users": []
+      },
+      "streamSettings": {
+        "network": "masque",
+        "security": "tls",
+        "tlsSettings": {
+          "certificates": [
+            {
+              "certificateFile": "/etc/letsencrypt/live/{{DOMAIN}}/fullchain.pem",
+              "keyFile": "/etc/letsencrypt/live/{{DOMAIN}}/privkey.pem"
+            }
+          ]
+        }
+      }
     }
   ],
   "outbounds": [

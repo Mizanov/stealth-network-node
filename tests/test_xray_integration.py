@@ -28,6 +28,7 @@ from xray_manager import (
     delete_user_from_xray,
     atomic_modify_xray_config,
     ensure_xray_stats_config,
+    ensure_xray_masque_config,
     XrayConfigError,
     XrayValidationError,
     XrayReloadError
@@ -157,6 +158,27 @@ class TestXrayManager(unittest.TestCase):
 
         vision_clients = data["inbounds"][0]["settings"]["clients"]
         self.assertEqual(len(vision_clients), 2)
+
+    def test_ensure_masque_config_and_add_user(self):
+        """ensure_xray_masque_config adds masque-in and add_user_to_xray populates users array."""
+        data = load_xray_config(self.config_path)
+        configured = ensure_xray_masque_config(data, domain="test.example.org", masque_port=8445)
+        masque_ib = next((ib for ib in configured["inbounds"] if ib.get("tag") == "masque-in"), None)
+        self.assertIsNotNone(masque_ib)
+        self.assertEqual(masque_ib.get("protocol"), "masque")
+        self.assertEqual(masque_ib.get("port"), 8445)
+        self.assertEqual(masque_ib["settings"]["address"], ["10.13.0.1/24"])
+
+        # Add user with user_pass
+        updated = add_user_to_xray(configured, "masque_user", "uuid-1234", user_pass="secret_pass_123")
+        masque_users = masque_ib["settings"]["users"]
+        self.assertEqual(len(masque_users), 1)
+        self.assertEqual(masque_users[0]["email"], "masque_user")
+        self.assertEqual(masque_users[0]["pass"], "secret_pass_123")
+
+        # Delete user
+        deleted = delete_user_from_xray(updated, "masque_user")
+        self.assertEqual(len(masque_ib["settings"]["users"]), 0)
 
     def test_delete_user_from_xray(self):
         """Deleting user removes them from all inbounds."""
@@ -296,7 +318,7 @@ class TestDualTransportSubscription(unittest.TestCase):
         decoded = base64.b64decode(b64_content).decode("utf-8")
 
         lines = [line.strip() for line in decoded.strip().split("\n") if line.strip()]
-        self.assertEqual(len(lines), 4)
+        self.assertEqual(len(lines), 5)
 
         # 1. Primary REALITY Vision
         self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:8443", lines[0])
@@ -313,14 +335,19 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.assertIn("path=%2Fxhttp", lines[1])
         self.assertIn("#🛡️ [Резерв] VLESS-XHTTP-REALITY", lines[1])
 
-        # 3. Legacy VLESS WS
-        self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:443", lines[2])
-        self.assertIn("type=ws", lines[2])
-        self.assertIn("#🌐 [WS] VLESS-WS-TLS", lines[2])
+        # 3. MASQUE TLS
+        self.assertIn("masque://alice:secrettrjpass@example.org:8445", lines[2])
+        self.assertIn("sni=example.org", lines[2])
+        self.assertIn("#🌐 [IETF] MASQUE-TLS", lines[2])
 
-        # 4. Legacy Trojan WS
-        self.assertIn("trojan://secrettrjpass@example.org:443", lines[3])
-        self.assertIn("#🔒 [WS] Trojan-WS-TLS", lines[3])
+        # 4. Legacy VLESS WS
+        self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:443", lines[3])
+        self.assertIn("type=ws", lines[3])
+        self.assertIn("#🌐 [WS] VLESS-WS-TLS", lines[3])
+
+        # 5. Legacy Trojan WS
+        self.assertIn("trojan://secrettrjpass@example.org:443", lines[4])
+        self.assertIn("#🔒 [WS] Trojan-WS-TLS", lines[4])
 
         # Check vless client JSON
         client_json = os.path.join(self.www_dir, f"{token}-vless.json")
@@ -331,8 +358,17 @@ class TestDualTransportSubscription(unittest.TestCase):
             if ob.get("type") == "vless":
                 self.assertEqual(ob.get("uuid"), "aaaa-bbbb-cccc-dddd")
 
+        # Check masque client JSON
+        masque_json = os.path.join(self.www_dir, f"{token}-masque.json")
+        self.assertTrue(os.path.exists(masque_json))
+        with open(masque_json, "r", encoding="utf-8") as f:
+            mj = json.load(f)
+        proxy_ob = next((ob for ob in mj.get("outbounds", []) if ob.get("tag") == "proxy-masque"), None)
+        self.assertIsNotNone(proxy_ob)
+        self.assertEqual(proxy_ob.get("protocol"), "masque")
+
     def test_subscription_backward_compatibility_without_reality(self):
-        """Falls back to 2 legacy profiles when reality_public_key is not configured."""
+        """Falls back to 3 profiles (vless, trojan, masque) when reality_public_key is not configured."""
         res = create_or_update_subscription(
             username="bob",
             vless_uuid="bbbb-cccc-dddd-eeee",
@@ -354,9 +390,10 @@ class TestDualTransportSubscription(unittest.TestCase):
         with open(txt_file, "r", encoding="utf-8") as f:
             decoded = base64.b64decode(f.read().strip()).decode("utf-8")
         lines = [line.strip() for line in decoded.strip().split("\n") if line.strip()]
-        self.assertEqual(len(lines), 2)
+        self.assertEqual(len(lines), 3)
         self.assertTrue(lines[0].startswith("vless://"))
         self.assertTrue(lines[1].startswith("trojan://"))
+        self.assertTrue(lines[2].startswith("masque://"))
 
 
 class TestSingboxControlXrayActions(unittest.TestCase):

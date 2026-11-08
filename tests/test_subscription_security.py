@@ -103,6 +103,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         self.assertIn(f"{token}.txt", files)
         self.assertIn(f"{token}-vless.json", files)
         self.assertIn(f"{token}-trj.json", files)
+        self.assertIn(f"{token}-masque.json", files)
 
         # Verify content
         with open(os.path.join(self.www_dir, f"{token}.txt"), "r") as f:
@@ -168,7 +169,9 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         )
         old_token = res1["token"]
         old_file = os.path.join(self.www_dir, f"{old_token}.txt")
+        old_masque = os.path.join(self.www_dir, f"{old_token}-masque.json")
         self.assertTrue(os.path.exists(old_file))
+        self.assertTrue(os.path.exists(old_masque))
 
         # Rotate token
         res2 = rotate_subscription_token(
@@ -188,10 +191,13 @@ class TestSubscriptionLifecycle(unittest.TestCase):
 
         # Old file MUST BE DELETED (404 for anyone with old link)
         self.assertFalse(os.path.exists(old_file))
+        self.assertFalse(os.path.exists(old_masque))
 
         # New file must exist
         new_file = os.path.join(self.www_dir, f"{new_token}.txt")
+        new_masque = os.path.join(self.www_dir, f"{new_token}-masque.json")
         self.assertTrue(os.path.exists(new_file))
+        self.assertTrue(os.path.exists(new_masque))
 
     def test_subscription_revocation(self):
         """Revoking subscription removes all files and deletes registry entry."""

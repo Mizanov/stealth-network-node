@@ -2,14 +2,15 @@
 
 # 🚀 tgproxy-vpsvless-tgbot
 
-### 🛡️ Dual-Transport Stealth VPN (Xray REALITY Vision & XHTTP + Sing-Box) & Telegram Web Proxy
+### 🛡️ Multi-Transport Stealth VPN (Xray REALITY Vision & XHTTP, IETF MASQUE + Sing-Box) & Telegram Web Proxy
 
-Готовое решение «под ключ» для развёртывания на чистом VPS: двухтранспортный современный VPN на базе **Xray-Core** (высокоскоростной **VLESS + REALITY + Vision** и анти-DPI **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (legacy VLESS / Trojan WS + TLS), официальный **Telegram Web Proxy** (`tproxy-server`), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок (4 в 1) для **Incy, Happ, Sing-Box, v2rayN / v2rayNG, Streisand, Shadowrocket, Hiddify, Nekobox** и других современных клиентов.
+Готовое решение «под ключ» для развёртывания на чистом VPS: мультитранспортный современный VPN на базе **Xray-Core** (высокоскоростной **VLESS + REALITY + Vision**, анти-DPI **VLESS + XHTTP + REALITY** с защитой **Self-SNI** и новейший стандарт **IETF MASQUE** по HTTP/3 over QUIC), **Sing-Box** (legacy VLESS / Trojan WS + TLS), официальный **Telegram Web Proxy** (`tproxy-server`), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок (5 в 1) для **Incy, Happ, Sing-Box, Shadowrocket, v2rayN / v2rayNG, Streisand, Surge, Hiddify, Nekobox** и других современных клиентов.
 
 [![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-orange?logo=ubuntu)](https://ubuntu.com)
 [![Debian 12](https://img.shields.io/badge/Debian-12-red?logo=debian)](https://debian.org)
 [![Sing-Box](https://img.shields.io/badge/Sing--Box-Core-blue?logo=box)](https://sing-box.sagernet.org)
-[![Xray-Core](https://img.shields.io/badge/Xray--Core-REALITY%20%26%20XHTTP-blueviolet?logo=x)](https://github.com/XTLS/Xray-core)
+[![Xray-Core](https://img.shields.io/badge/Xray--Core-REALITY%20%26%20MASQUE-blueviolet?logo=x)](https://github.com/XTLS/Xray-core)
+[![IETF MASQUE](https://img.shields.io/badge/IETF-MASQUE%20(HTTP%2F3%20QUIC)-green?logo=internet-computer)](https://datatracker.ietf.org/wg/masque/about/)
 [![Design: AI Design Skills](https://img.shields.io/badge/Design-AI%20Design%20Skills-black?logo=figma)](https://github.com/elayadesign/ai-design-skills)
 [![Design: Hallmark Anti-Slop](https://img.shields.io/badge/Design-Hallmark%20Anti--Slop-blue?logo=ghost)](https://github.com/Nutlope/hallmark)
 [![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker)](https://docker.com)
@@ -21,19 +22,22 @@
 
 ## 🌟 Ключевые возможности
 
-* **Двухтранспортная архитектура нового поколения (Xray-Core + Sing-Box)**:
+* **Мультитранспортная архитектура нового поколения (Xray-Core + Sing-Box)**:
   * ⚡ **Основной VPN — VLESS + REALITY + Vision (TCP) на порту 8443**: 0-RTT, минимальные накладные расходы, сверхвысокая скорость.
   * 🛡️ **Резервный VPN — VLESS + XHTTP + REALITY на порту 8444**: новейший потоковый транспорт Xray, эмулирующий стандартные HTTP-запросы для обхода агрессивных блокировок ТСПУ/DPI.
+  * 🌐 **Новейший IETF MASQUE (CONNECT-IP over HTTP/3 QUIC) на порту 8445 (UDP + TCP)**: туннелирование трафика внутри сессий HTTP/3 over QUIC по стандартам RFC 9297, RFC 9298 и RFC 9484. Нативная передача UDP/IP, миграция сессий без разрывов при смене сети (Wi-Fi ➔ LTE) и маскировка под современный веб-трафик.
   * 🔒 **Self-SNI маскировка (Защита от бана за чужой SNI)**: SNI указывает строго на **собственный домен сервера**, а fallback REALITY направляется на локальный Nginx (`127.0.0.1:443`). При проверках цензоров IP-адрес соединения на 100% совпадает с DNS A-записью домена, устраняя подозрения на SNI-спуфинг.
   * 🌐 **100% обратная совместимость (WS + TLS на порту 443)**: Sing-Box продолжает обслуживать VLESS WS и Trojan WS через Nginx для старых клиентов.
-* **Универсальные ключи и подписки для всех клиентов ([Incy](https://incy.app), [Happ](https://github.com), [Sing-Box](https://sing-box.sagernet.org), v2rayN/v2rayNG, Shadowrocket, Streisand)**:
-  * Единая **Base64-подписка** (`.txt`), содержащая сразу **4 профиля**:
+* **Универсальные ключи и подписки для всех клиентов ([Incy](https://incy.app), [Happ](https://github.com), [Sing-Box](https://sing-box.sagernet.org), Shadowrocket, Surge, v2rayN/v2rayNG, Streisand)**:
+  * Единая **Base64-подписка** (`.txt`), содержащая сразу **5 профилей**:
     1. `⚡ [Основной] VLESS-REALITY-Vision` (8443/tcp, xtls-rprx-vision, Self-SNI)
     2. `🛡️ [Резерв] VLESS-XHTTP-REALITY` (8444/tcp, xhttp, Self-SNI)
-    3. `🌐 [WS] VLESS-WS-TLS` (443/tcp, ws)
-    4. `🔒 [WS] Trojan-WS-TLS` (443/tcp, ws)
+    3. `🌐 [IETF] MASQUE-TLS` (8445/udp+tcp, CONNECT-IP over HTTP/3 QUIC)
+    4. `🌐 [WS] VLESS-WS-TLS` (443/tcp, ws)
+    5. `🔒 [WS] Trojan-WS-TLS` (443/tcp, ws)
   * Автоматическая генерация **QR-кодов** для мгновенного сканирования камерой в приложении.
   * Чистые `.json` профили для оригинального ядра Sing-Box с селектором outbounds (`vless-reality` по умолчанию) и правилами обхода блокировок (AntiZapret, GeoIP, GeoSite).
+  * Готовый клиентский конфиг `*-masque.json` для Xray и Sing-Box с поддержкой MASQUE.
 * **Официальный Telegram Web Proxy ([tproxy-server](https://github.com/telegramdesktop/tproxy-server))**:
   * Новый стандарт веб-прокси Telegram от команды Telegram Desktop.
   * Трафик маскируется под легитимный HTTPS-сайт через WebSocket/HTTPS.
@@ -76,21 +80,56 @@
 ## 📐 Архитектура системы
 
 ```text
-                                 ИНТЕРНЕТ
-                                    │
-       ┌────────────────────────────┼────────────────────────────┐
-       ▼                            ▼                            ▼
-[ Порт 8443 (TCP) ]          [ Порт 8444 (TCP) ]          [ Порты 80, 443 (TCP) ]
- Xray-Core: REALITY           Xray-Core: XHTTP             NGINX СТЕЛС-ФРОНТЕНД
- ├─ VLESS + REALITY + Vision  ├─ VLESS + XHTTP + REALITY   (SSL / HSTS / Drop 444)
- └─ Self-SNI -> 127.0.0.1:443 └─ Self-SNI -> 127.0.0.1:443      │
-                                            ┌────────────────────┼────────────────────┐
-                                            ▼                    ▼                    ▼
-                                     [ Sing-Box Core ]    [ tgweb-proxy ]     [ Drop 444 ]
-                                     ├─ :11443 VLESS (ws) └─ :8080 (Docker)   (Anti-Scan)
-                                     ├─ :10443 Trojan(ws) └─ :2398 MTProxy
-                                     └─ Подписки /var/www/
+                                         ИНТЕРНЕТ
+                                            │
+        ┌───────────────────┬───────────────┴───────────────┬───────────────────┐
+        ▼                   ▼                               ▼                   ▼
+[ Порт 8443 (TCP) ]   [ Порт 8444 (TCP) ]          [ Порт 8445 (UDP+TCP) ]   [ Порты 80, 443 (TCP) ]
+ Xray-Core: REALITY    Xray-Core: XHTTP             Xray-Core: MASQUE         NGINX СТЕЛС-ФРОНТЕНД
+ ├─ VLESS Vision       ├─ VLESS + XHTTP             ├─ CONNECT-IP over HTTP/3 (SSL / HSTS / Drop 444)
+ └─ Self-SNI -> 443    └─ Self-SNI -> 443           ├─ QUIC Datagrams (RFC 9297) │
+                                                    └─ Let's Encrypt TLS 1.3    ┌────────┴────────┐
+                                                                                ▼                 ▼
+                                                                        [ Sing-Box Core ] [ tgweb-proxy ]
+                                                                        ├─ :11443 VLESS ws└─ :8080 (Docker)
+                                                                        ├─ :10443 Trojan ws
+                                                                        └─ Подписки /var/www/
 ```
+
+---
+
+## 🌐 Протокол нового поколения: IETF MASQUE (CONNECT-IP / HTTP/3 over QUIC)
+
+В комплекс интегрирован инновационный протокол **MASQUE** (**M**ultiplexed **A**pplication **S**ubstrate over **QU**IC **E**ncryption) — открытый стандарт рабочей группы IETF, разработанный инженерами Google, Apple, Cloudflare и Akamai для замены устаревших протоколов туннелирования (IPsec, OpenVPN, WireGuard).
+
+### 📚 Стандарты IETF RFC
+* **[RFC 9297](https://datatracker.ietf.org/doc/html/rfc9297)** — *HTTP Datagrams and the Capsule Protocol*: передача ненадёжных датаграммных пакетов (UDP) поверх потоков HTTP/3 и HTTP/2.
+* **[RFC 9298](https://datatracker.ietf.org/doc/html/rfc9298)** — *Proxying UDP in HTTP*: туннелирование отдельных UDP-сокетов через метод HTTP/3 `CONNECT-UDP`.
+* **[RFC 9484](https://datatracker.ietf.org/doc/html/rfc9484)** — *Proxying IP in HTTP (CONNECT-IP)*: полнофункциональное L3 IP-туннелирование с виртуальным адресным пространством (`10.13.0.0/24`) прямо поверх сессий HTTP/3 over QUIC.
+
+### 🚀 Почему MASQUE превосходит традиционные протоколы VPN?
+
+1. **Неразличимость от веб-трафика HTTP/3 / QUIC (Стелс 10/10)**:
+   * Трафик передаётся по **UDP на порту 8445** (с автоматическим фолбэком на TCP при необходимости).
+   * Для систем глубокого анализа пакетов (DPI / ТСПУ) сетевая активность выглядит как стандартное посещение веб-ресурса по протоколу **HTTP/3** с шифрованием **TLS 1.3**. Внешний наблюдатель не может отличить туннель MASQUE от обычного воспроизведения видео на YouTube или загрузки ассетов через Cloudflare CDN.
+2. **Отсутствие Head-of-Line Blocking (Защита от очередей при потере пакетов)**:
+   * В обычных TCP-туннелях (VLESS, Trojan, OpenVPN over TCP) потеря всего одного TCP-сегмента блокирует доставку всех последующих данных в буфере операционной системы до момента повторной передачи (Retransmission).
+   * В MASQUE поверх QUIC каждый поток и каждая датаграмма независимы. Потеря отдельных пакетов не влияет на параллельные соединения, обеспечивая минимальный джиттер и стабильный пинг в онлайн-играх и голосовой связи (Telegram/Discord/WhatsApp).
+3. **Бесшовное переключение сетей (Connection Migration)**:
+   * Сессия QUIC привязана не к 4-tuple IP-адресов и портов (`IP_клиента:порт -> IP_сервера:порт`), а к криптографическому **64-битному Connection ID**.
+   * При выходе из дома и переключении смартфона с домашней сети **Wi-Fi на мобильный интернет LTE/5G** соединение **не рвётся и не требует повторного рукопожатия**. Все активные звонки, загрузки и веб-сессии продолжают работать без микропауз.
+4. **0-RTT возобновление сессий**:
+   * При повторных подключениях клиент сразу передаёт зашифрованные данные первого запроса в первом же UDP-пакете рукопожатия, обеспечивая мгновенный старт передачи данных.
+5. **Встроенный контроль перегрузок (BBRv3 / Cubic)**:
+   * Алгоритмы контроля перегрузок работают на уровне пространства пользователя, оперативно реагируя на изменение пропускной способности мобильного радиоканала.
+
+### 📱 Поддерживаемые клиенты
+* **Shadowrocket** (iOS / iPadOS / macOS Apple Silicon) — полная поддержка URI `masque://`.
+* **Surge** (iOS / macOS) — нативная поддержка CONNECT-IP HTTP/3.
+* **Sing-Box 1.15+** (Android, iOS, macOS, Windows, Linux) — через конфигурационный файл `{token}-masque.json`.
+* **Xray-Core** (клиентские десктопные сборки) — через готовый шаблон конфигурации `template-masque.json`.
+
+---
 
 ---
 
@@ -123,7 +162,7 @@
 
 ### 5. 🛡️ Фаервол UFW и сетевая изоляция сервисов
 * **Политика по умолчанию**: `default deny incoming` — все порты закрыты, кроме явно разрешённых.
-* **Строго необходимые открытые порты**: `22` (SSH), `80` (HTTP для валидации Let's Encrypt и безопасного редиректа), `443` (HTTPS Nginx), `8443` (Xray REALITY Vision), `8444` (Xray XHTTP REALITY).
+* **Строго необходимые открытые порты**: `22` (SSH), `80` (HTTP для валидации Let's Encrypt и безопасного редиректа), `443` (HTTPS Nginx), `8443` (Xray REALITY Vision), `8444` (Xray XHTTP REALITY), `8445/tcp` и `8445/udp` (IETF MASQUE CONNECT-IP over HTTP/3).
 * **Локальная изоляция (Localhost Only)**: Все сервисы туннелирования привязаны строго к интерфейсу loopback `127.0.0.1`:
   * `127.0.0.1:11443` — Sing-Box VLESS WebSocket inbound.
   * `127.0.0.1:10443` — Sing-Box Trojan WebSocket inbound.
@@ -219,8 +258,12 @@ chmod +x install.sh
   * Импортируйте ссылку на подписку (`.txt`) через пункт «Profiles» / «Add Remote Profile» либо загрузите готовый `.json` файл.
 * **v2rayN (Windows) / v2rayNG (Android)**:
   * Скопируйте `vless://` строку из сообщения бота ➔ нажмите «Импорт из буфера обмена» (Ctrl+V в v2rayN или значок «+» в v2rayNG), либо добавьте ссылку подписки.
-* **Streisand / FoXray / Shadowrocket / Karing (iOS, macOS, Android)**:
+* **Streisand / FoXray / Karing (iOS, macOS, Android)**:
   * Нажмите «+» ➔ добавьте ссылку подписки (тип: Base64 / V2Ray) или отсканируйте QR-код.
+* **Shadowrocket / Surge (iOS, macOS)**:
+  * Нажмите «+» ➔ добавьте ссылку подписки (`.txt`) либо прямую URI-ссылку `masque://` из сообщения бота для прямого подключения по протоколу **IETF MASQUE** (HTTP/3 over QUIC).
+* **Xray / Sing-Box 1.15+ (Десктопные клиенты)**:
+  * Нажмите кнопку **«🌐 MASQUE JSON»** в боте и импортируйте готовый JSON-конфиг для нативного туннелирования с виртуальным интерфейсом TUN / Socks.
 
 ### 3. Подключение Telegram Web Proxy
 

@@ -70,6 +70,8 @@ else
     ufw allow 443/tcp comment 'HTTPS'
     ufw allow 8443/tcp comment 'Xray REALITY Vision'
     ufw allow 8444/tcp comment 'Xray REALITY XHTTP'
+    ufw allow 8445/tcp comment 'MASQUE TCP'
+    ufw allow 8445/udp comment 'MASQUE UDP (HTTP/3 QUIC)'
     ufw --force enable
 fi
 ok "UFW firewall configured."
