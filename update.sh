@@ -37,7 +37,7 @@ ENV_FILE="/opt/incy-bot/.env"
 
 echo ""
 echo -e "${CYAN}${BOLD}═════════════════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}${BOLD}   🚀 Запуск обновления VPS: tgproxy-vpsvless-tgbot (Hardened)       ${NC}"
+echo -e "${CYAN}${BOLD}   🚀 Запуск обновления VPS: stealth-vpn-node (Hardened)             ${NC}"
 echo -e "${CYAN}${BOLD}═════════════════════════════════════════════════════════════════════${NC}"
 echo ""
 

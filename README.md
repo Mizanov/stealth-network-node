@@ -17,7 +17,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 > 💡 **Ищете NaiveProxy, Telegram Web Proxy и каскадный шлюз через сервер в РФ?**  
-> Обратите внимание на наш второй репозиторий: **[stealth-proxy-cascade](https://github.com/your-username/stealth-proxy-cascade)** — специализированный узел с Caddy v2, NaiveProxy (Chromium stack), Telegram Web Proxy и Smart Russian Cascade.
+> Обратите внимание на наш второй репозиторий: **[stealth-proxy-cascade](https://github.com/Mizanov/stealth-proxy-cascade)** — специализированный узел с Caddy v2, NaiveProxy (Chromium stack), Telegram Web Proxy и Smart Russian Cascade.
 
 </div>
 
@@ -119,8 +119,8 @@
 Подключитесь к вашему VPS по SSH с правами `root`:
 
 ```bash
-git clone https://github.com/your-username/tgproxy-vpsvless-tgbot.git /opt/tgproxy-vpsvless-tgbot
-cd /opt/tgproxy-vpsvless-tgbot
+git clone https://github.com/Mizanov/stealth-vpn-node.git /opt/stealth-vpn-node
+cd /opt/stealth-vpn-node
 chmod +x install.sh
 ./install.sh
 ```
@@ -217,7 +217,7 @@ systemctl restart xray sing-box nginx incy-bot fail2ban
 Для обновления существующей системы выполните:
 
 ```bash
-cd /opt/tgproxy-vpsvless-tgbot
+cd /opt/stealth-vpn-node
 git pull
 sudo bash update.sh
 ```
@@ -231,7 +231,7 @@ sudo bash update.sh
 Если вам потребуется полностью удалить все компоненты с сервера:
 
 ```bash
-cd /opt/tgproxy-vpsvless-tgbot
+cd /opt/stealth-vpn-node
 chmod +x uninstall.sh
 ./uninstall.sh
 ```
