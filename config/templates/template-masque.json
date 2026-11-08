@@ -26,15 +26,18 @@
       "protocol": "masque",
       "settings": {
         "address": "{{DOMAIN}}",
-        "port": {{MASQUE_PORT}},
-        "email": "{{USER_NAME}}",
-        "pass": "{{USER_PASS}}"
+        "port": {{MASQUE_PORT}}
       },
       "streamSettings": {
         "network": "masque",
         "security": "tls",
         "tlsSettings": {
           "serverName": "{{DOMAIN}}"
+        },
+        "masqueSettings": {
+          "headers": {
+            "Authorization": "Basic {{USER_AUTH_BASE64}}"
+          }
         }
       }
     },

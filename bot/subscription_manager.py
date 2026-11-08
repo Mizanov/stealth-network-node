@@ -245,6 +245,7 @@ def create_or_update_subscription(
 
         # 4. MASQUE client template
         masque_json_path = os.path.join(www_dir, f"{token}-masque.json")
+        user_auth_b64 = base64.b64encode(f"{username}:{trojan_pass}".encode("utf-8")).decode("utf-8")
         if os.path.exists(masque_template):
             try:
                 with open(masque_template, "r", encoding="utf-8") as f:
@@ -253,6 +254,7 @@ def create_or_update_subscription(
                 masque_content = masque_content.replace("{{MASQUE_PORT}}", str(masque_port))
                 masque_content = masque_content.replace("{{USER_NAME}}", username)
                 masque_content = masque_content.replace("{{USER_PASS}}", trojan_pass)
+                masque_content = masque_content.replace("{{USER_AUTH_BASE64}}", user_auth_b64)
                 with open(masque_json_path, "w", encoding="utf-8") as f:
                     f.write(masque_content)
                 os.chmod(masque_json_path, 0o644)
@@ -272,14 +274,17 @@ def create_or_update_subscription(
                             "protocol": "masque",
                             "settings": {
                                 "address": domain,
-                                "port": masque_port,
-                                "email": username,
-                                "pass": trojan_pass
+                                "port": masque_port
                             },
                             "streamSettings": {
                                 "network": "masque",
                                 "security": "tls",
-                                "tlsSettings": {"serverName": domain}
+                                "tlsSettings": {"serverName": domain},
+                                "masqueSettings": {
+                                    "headers": {
+                                        "Authorization": f"Basic {user_auth_b64}"
+                                    }
+                                }
                             }
                         },
                         {"tag": "direct", "protocol": "freedom"}
@@ -591,12 +596,14 @@ def sync_subscriptions_from_config(
                 if os.path.exists(masque_template):
                     try:
                         masque_json_path = os.path.join(www_dir, f"{token}-masque.json")
+                        user_auth_b64 = base64.b64encode(f"{user}:{pw}".encode("utf-8")).decode("utf-8")
                         with open(masque_template, "r", encoding="utf-8") as f:
                             masque_content = f.read()
                         masque_content = masque_content.replace("{{DOMAIN}}", domain)
                         masque_content = masque_content.replace("{{MASQUE_PORT}}", str(masque_port))
                         masque_content = masque_content.replace("{{USER_NAME}}", user)
                         masque_content = masque_content.replace("{{USER_PASS}}", pw)
+                        masque_content = masque_content.replace("{{USER_AUTH_BASE64}}", user_auth_b64)
                         with open(masque_json_path, "w", encoding="utf-8") as f:
                             f.write(masque_content)
                         os.chmod(masque_json_path, 0o644)
