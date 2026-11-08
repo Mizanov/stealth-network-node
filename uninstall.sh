@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Multi-Transport Stealth VPN & Telegram Bot - Uninstaller
+# Multi-Transport Stealth Network Node & Telegram Bot - Uninstaller
 # ==============================================================================
 
 set -euo pipefail

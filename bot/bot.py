@@ -325,7 +325,7 @@ def generate_qr(data: str) -> io.BytesIO:
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
-        "Панель управления **Multi-Transport Stealth VPN**:\n"
+        "Панель управления **Multi-Transport Stealth Network Node**:\n"
         "• ⚡ **Xray-Core**: VLESS + REALITY Vision & XHTTP\n"
         "• 🚀 **Sing-Box**: Hysteria 2 Salamander UDP + VLESS/Trojan WS\n\n"
         "⚡ **Доступные команды:**\n"
@@ -460,7 +460,7 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     except Exception as e:
         logger.warning("Failed to sync traffic stats in list_users_command: %s", e)
 
-    msg = f"👥 **Список пользователей VPN ({len(users)}):**\n\n"
+    msg = f"👥 **Список учетных записей ({len(users)}):**\n\n"
     keyboard = []
     for u in users:
         u_stats = get_user_traffic(u, sync=False)
@@ -563,7 +563,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tot_traffic = s_data["server_total"]["formatted_total"]
         tot_dl = s_data["server_total"]["formatted_downlink"]
         tot_ul = s_data["server_total"]["formatted_uplink"]
-        traffic_line = f"📊 **Суммарный трафик VPN:** `{tot_traffic}` (⬇️ {tot_dl} / ⬆️ {tot_ul})\n\n"
+        traffic_line = f"📊 **Суммарный сетевой трафик:** `{tot_traffic}` (⬇️ {tot_dl} / ⬆️ {tot_ul})\n\n"
     except Exception:
         pass
 

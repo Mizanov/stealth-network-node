@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# Dual-Transport Stealth VPN & Telegram Web Proxy - Automated Installer
+# Multi-Transport Stealth Network Node & Telegram Bot - Automated Installer
 # Target OS: Ubuntu 22.04/24.04, Debian 12 (x86_64)
 # ==============================================================================
 
@@ -29,7 +29,7 @@ fi
 
 echo -e "${CYAN}${BOLD}"
 echo "╔═════════════════════════════════════════════════════════════════════╗"
-echo "║     Dual-Transport Stealth VPN & Telegram Web Proxy Installer       ║"
+echo "║        Multi-Transport Stealth Network Node Installer               ║"
 echo "╚═════════════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -68,7 +68,7 @@ prompt_var() {
     fi
 }
 
-prompt_var MAIN_DOMAIN "Enter your Main Domain (e.g., vpn.domain.com or domain.duckdns.org)"
+prompt_var MAIN_DOMAIN "Enter your Main Domain (e.g., node.domain.com or domain.duckdns.org)"
 prompt_var ACME_EMAIL "Enter your Email for Let's Encrypt certificates" "admin@$MAIN_DOMAIN"
 prompt_var TELEGRAM_BOT_TOKEN "Enter your Telegram Bot Token from @BotFather"
 prompt_var TELEGRAM_ADMIN_IDS "Enter your Telegram User ID (numeric, from @userinfobot)"
