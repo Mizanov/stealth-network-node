@@ -377,7 +377,7 @@ def ensure_singbox_hy2_config(
         hy2_inbound = {
             "type": "hysteria2",
             "tag": "hy2-in",
-            "listen": "::",
+            "listen": "0.0.0.0",
             "listen_port": hy2_port,
             "users": initial_users,
             "obfs": {

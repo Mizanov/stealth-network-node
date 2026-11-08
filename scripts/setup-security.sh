@@ -23,9 +23,14 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Kernel Network Hardening (Anti-Spoofing, SYN Cookies, BBR)
+# 1. Kernel Network Hardening (Anti-Spoofing, SYN Cookies, BBR, IPv6 Leak Protection)
 info "Applying Linux kernel network hardening (/etc/sysctl.d/99-security.conf)..."
 cat << 'EOF' > /etc/sysctl.d/99-security.conf
+# Disable IPv6 system-wide (Prevents IP/DNS leaks, asymmetric routing & Let's Encrypt AAAA mismatch)
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+
 # TCP SYN Flood Protection
 net.ipv4.tcp_syncookies = 1
 net.ipv4.tcp_max_syn_backlog = 8192
@@ -56,7 +61,12 @@ net.ipv4.tcp_congestion_control = bbr
 EOF
 
 sysctl --system >/dev/null 2>&1 || true
-ok "Kernel network hardening applied."
+ok "Kernel network hardening applied (IPv6 disabled, BBR active)."
+
+# Ensure UFW does not process IPv6
+if [ -f /etc/default/ufw ]; then
+    sed -i 's/^IPV6=yes/IPV6=no/' /etc/default/ufw 2>/dev/null || true
+fi
 
 # 2. UFW Firewall Setup
 info "Configuring UFW firewall (default deny incoming, allow 22/80/443)..."

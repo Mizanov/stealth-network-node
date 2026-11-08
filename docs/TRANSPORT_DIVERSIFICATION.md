@@ -54,7 +54,7 @@ REALITY решает проблему сертификатов и активно
 {
   "type": "vless",
   "tag": "vless-reality-in",
-  "listen": "::",
+  "listen": "0.0.0.0",
   "listen_port": 443,
   "sniff": true,
   "sniff_override_destination": true,

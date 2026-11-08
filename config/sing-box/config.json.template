@@ -65,7 +65,7 @@
     {
       "type": "hysteria2",
       "tag": "hy2-in",
-      "listen": "::",
+      "listen": "0.0.0.0",
       "listen_port": 443,
       "users": [
         {
@@ -88,7 +88,8 @@
   "outbounds": [
     {
       "type": "direct",
-      "tag": "direct"
+      "tag": "direct",
+      "domain_strategy": "ipv4_only"
     },
     {
       "type": "socks",

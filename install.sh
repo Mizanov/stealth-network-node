@@ -101,7 +101,22 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip unzip
 
-# 5. Enable BBR
+# 5. Disable IPv6 & Enable BBR
+info "Disabling IPv6 by default to prevent DNS/IP leaks and dual-stack issues..."
+cat << 'EOF' > /etc/sysctl.d/99-disable-ipv6.conf
+# Disable IPv6 system-wide (Prevents IP/DNS leaks, dual-stack routing & Let's Encrypt AAAA mismatch)
+net.ipv6.conf.all.disable_ipv6 = 1
+net.ipv6.conf.default.disable_ipv6 = 1
+net.ipv6.conf.lo.disable_ipv6 = 1
+EOF
+sysctl -w net.ipv6.conf.all.disable_ipv6=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv6.conf.default.disable_ipv6=1 >/dev/null 2>&1 || true
+sysctl -w net.ipv6.conf.lo.disable_ipv6=1 >/dev/null 2>&1 || true
+
+if [ -f /etc/default/ufw ]; then
+    sed -i 's/^IPV6=yes/IPV6=no/' /etc/default/ufw 2>/dev/null || true
+fi
+
 info "Enabling TCP BBR..."
 if ! grep -q "tcp_congestion_control=bbr" /etc/sysctl.conf /etc/sysctl.d/* 2>/dev/null; then
     echo "net.core.default_qdisc=fq" >> /etc/sysctl.d/99-bbr.conf

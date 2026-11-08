@@ -84,17 +84,15 @@ http {
         default "$proxy_forwarded_elem";
     }
 
-    # Port 80: Drop raw IP scanners, redirect domains to HTTPS
+    # Port 80: Drop raw IP scanners, redirect domains to HTTPS (IPv4 only)
     server {
         listen       80 default_server;
-        listen       [::]:80 default_server;
         server_name  _;
         return       444;
     }
 
     server {
         listen       80;
-        listen       [::]:80;
         server_name  {{DOMAIN}};
 
         # Zero-downtime ACME HTTP-01 challenge validation for Let's Encrypt
@@ -110,7 +108,6 @@ http {
     # Disable access via IP or wrong domain name (Stealth 444)
     server {
         listen                443 ssl default_server;
-        listen                [::]:443 ssl default_server;
         http2                 on;
         server_name           _;
 
@@ -124,7 +121,6 @@ http {
     # Site
     server {
         listen                               443 ssl so_keepalive=on;
-        listen                               [::]:443 ssl so_keepalive=on;
         http2                                on;
         server_name                          {{DOMAIN}};
         # root                                 /var/www/html;
