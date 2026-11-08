@@ -11,8 +11,7 @@ ufw allow 80/tcp comment 'HTTP (Let'\''s Encrypt)'
 ufw allow 443/tcp comment 'HTTPS (Sing-Box & Telegram Web Proxy)'
 ufw allow 8443/tcp comment 'Xray REALITY Vision'
 ufw allow 8444/tcp comment 'Xray REALITY XHTTP'
-ufw allow 8445/tcp comment 'MASQUE TCP'
-ufw allow 8445/udp comment 'MASQUE UDP (HTTP/3 QUIC)'
+ufw allow 443/udp comment 'Hysteria 2 UDP (QUIC)'
 
 # Enable UFW non-interactively
 ufw --force enable

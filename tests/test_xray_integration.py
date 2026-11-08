@@ -28,7 +28,7 @@ from xray_manager import (
     delete_user_from_xray,
     atomic_modify_xray_config,
     ensure_xray_stats_config,
-    ensure_xray_masque_config,
+    remove_xray_masque_config,
     XrayConfigError,
     XrayValidationError,
     XrayReloadError
@@ -159,26 +159,13 @@ class TestXrayManager(unittest.TestCase):
         vision_clients = data["inbounds"][0]["settings"]["clients"]
         self.assertEqual(len(vision_clients), 2)
 
-    def test_ensure_masque_config_and_add_user(self):
-        """ensure_xray_masque_config adds masque-in and add_user_to_xray populates users array."""
+    def test_remove_xray_masque_config(self):
+        """remove_xray_masque_config strips legacy masque-in inbound from Xray."""
         data = load_xray_config(self.config_path)
-        configured = ensure_xray_masque_config(data, domain="test.example.org", masque_port=8445)
-        masque_ib = next((ib for ib in configured["inbounds"] if ib.get("tag") == "masque-in"), None)
-        self.assertIsNotNone(masque_ib)
-        self.assertEqual(masque_ib.get("protocol"), "masque")
-        self.assertEqual(masque_ib.get("port"), 8445)
-        self.assertEqual(masque_ib["settings"]["address"], ["10.13.0.1/24"])
-
-        # Add user with user_pass
-        updated = add_user_to_xray(configured, "masque_user", "uuid-1234", user_pass="secret_pass_123")
-        masque_users = masque_ib["settings"]["users"]
-        self.assertEqual(len(masque_users), 1)
-        self.assertEqual(masque_users[0]["email"], "masque_user")
-        self.assertEqual(masque_users[0]["pass"], "secret_pass_123")
-
-        # Delete user
-        deleted = delete_user_from_xray(updated, "masque_user")
-        self.assertEqual(len(masque_ib["settings"]["users"]), 0)
+        data["inbounds"].append({"tag": "masque-in", "protocol": "masque", "port": 8445})
+        self.assertTrue(any(ib.get("tag") == "masque-in" for ib in data["inbounds"]))
+        cleaned = remove_xray_masque_config(data)
+        self.assertFalse(any(ib.get("tag") == "masque-in" or ib.get("protocol") == "masque" for ib in cleaned["inbounds"]))
 
     def test_delete_user_from_xray(self):
         """Deleting user removes them from all inbounds."""
@@ -265,10 +252,12 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.lock_path = os.path.join(self.test_dir, "sub.lock")
         self.vless_template = os.path.join(self.test_dir, "template-vless.json")
         self.trojan_template = os.path.join(self.test_dir, "template-trj.json")
+        self.hy2_template = os.path.join(self.test_dir, "template-hy2.json")
 
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         src_vless_tmpl = os.path.join(repo_root, "config", "templates", "template-vless.json")
         src_trj_tmpl = os.path.join(repo_root, "config", "templates", "template-trj.json")
+        src_hy2_tmpl = os.path.join(repo_root, "config", "templates", "template-hy2.json")
 
         if os.path.exists(src_vless_tmpl):
             shutil.copy2(src_vless_tmpl, self.vless_template)
@@ -281,6 +270,12 @@ class TestDualTransportSubscription(unittest.TestCase):
         else:
             with open(self.trojan_template, "w", encoding="utf-8") as f:
                 json.dump({"outbounds": [{"type": "trojan", "tag": "proxy"}]}, f)
+
+        if os.path.exists(src_hy2_tmpl):
+            shutil.copy2(src_hy2_tmpl, self.hy2_template)
+        else:
+            with open(self.hy2_template, "w", encoding="utf-8") as f:
+                json.dump({"outbounds": [{"type": "hysteria2", "tag": "proxy"}]}, f)
 
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
@@ -304,6 +299,7 @@ class TestDualTransportSubscription(unittest.TestCase):
             xhttp_path="xhttp",
             vless_template=self.vless_template,
             trojan_template=self.trojan_template,
+            hy2_template=self.hy2_template,
             registry_path=self.registry_path,
             lock_path=self.lock_path
         )
@@ -335,10 +331,12 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.assertIn("path=%2Fxhttp", lines[1])
         self.assertIn("#🛡️ [Резерв] VLESS-XHTTP-REALITY", lines[1])
 
-        # 3. MASQUE TLS
-        self.assertIn("masque://alice:secrettrjpass@example.org:8445", lines[2])
+        # 3. Hysteria 2 UDP
+        self.assertIn("hysteria2://secrettrjpass@example.org:443", lines[2])
         self.assertIn("sni=example.org", lines[2])
-        self.assertIn("#🌐 [IETF] MASQUE-TLS", lines[2])
+        self.assertIn("obfs=salamander", lines[2])
+        self.assertIn("obfs-password=sal_sec_84729472", lines[2])
+        self.assertIn("#🚀 [Hy2] Hysteria2-Salamander", lines[2])
 
         # 4. Legacy VLESS WS
         self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:443", lines[3])
@@ -358,17 +356,17 @@ class TestDualTransportSubscription(unittest.TestCase):
             if ob.get("type") == "vless":
                 self.assertEqual(ob.get("uuid"), "aaaa-bbbb-cccc-dddd")
 
-        # Check masque client JSON
-        masque_json = os.path.join(self.www_dir, f"{token}-masque.json")
-        self.assertTrue(os.path.exists(masque_json))
-        with open(masque_json, "r", encoding="utf-8") as f:
-            mj = json.load(f)
-        proxy_ob = next((ob for ob in mj.get("outbounds", []) if ob.get("tag") == "proxy-masque"), None)
+        # Check hy2 client JSON
+        hy2_json = os.path.join(self.www_dir, f"{token}-hy2.json")
+        self.assertTrue(os.path.exists(hy2_json))
+        with open(hy2_json, "r", encoding="utf-8") as f:
+            hj = json.load(f)
+        proxy_ob = next((ob for ob in hj.get("outbounds", []) if ob.get("tag") == "proxy"), None)
         self.assertIsNotNone(proxy_ob)
-        self.assertEqual(proxy_ob.get("protocol"), "masque")
+        self.assertEqual(proxy_ob.get("type"), "hysteria2")
 
     def test_subscription_backward_compatibility_without_reality(self):
-        """Falls back to 3 profiles (vless, trojan, masque) when reality_public_key is not configured."""
+        """Falls back to 3 profiles (vless, trojan, hy2) when reality_public_key is not configured."""
         res = create_or_update_subscription(
             username="bob",
             vless_uuid="bbbb-cccc-dddd-eeee",
@@ -381,6 +379,7 @@ class TestDualTransportSubscription(unittest.TestCase):
             reality_public_key="",  # Not configured
             vless_template=self.vless_template,
             trojan_template=self.trojan_template,
+            hy2_template=self.hy2_template,
             registry_path=self.registry_path,
             lock_path=self.lock_path
         )
@@ -393,7 +392,7 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.assertEqual(len(lines), 3)
         self.assertTrue(lines[0].startswith("vless://"))
         self.assertTrue(lines[1].startswith("trojan://"))
-        self.assertTrue(lines[2].startswith("masque://"))
+        self.assertTrue(lines[2].startswith("hysteria2://"))
 
 
 class TestSingboxControlXrayActions(unittest.TestCase):

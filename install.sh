@@ -205,16 +205,21 @@ fi
 # 9. Configure Sing-Box
 info "Deploying Sing-Box configuration..."
 SERVER_IP=$(curl -s4 https://api.ipify.org || curl -s4 https://ifconfig.me || echo "127.0.0.1")
+HY2_PORT=443
+HY2_OBFS_PASSWORD="sal_$(openssl rand -hex 8)"
 
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+sed -e "s|{{MAIN_DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    -e "s|{{HY2_PORT}}|$HY2_PORT|g" \
+    -e "s|{{HY2_OBFS_PASSWORD}}|$HY2_OBFS_PASSWORD|g" \
     "$SCRIPT_DIR/config/sing-box/config.json.template" > /etc/sing-box/config.json
 
 # Inject initial user
-jq ".inbounds[] |= if .tag == \"vless-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"uuid\": \"$FIRST_USER_UUID\"}] elif .tag == \"trojan-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"password\": \"$FIRST_USER_PASS\"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
+jq ".inbounds[] |= if .tag == \"vless-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"uuid\": \"$FIRST_USER_UUID\"}] elif .tag == \"trojan-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"password\": \"$FIRST_USER_PASS\"}] elif .tag == \"hy2-in\" then .users = [{\"name\": \"$FIRST_USER_NAME\", \"password\": \"$FIRST_USER_PASS\"}] else . end" /etc/sing-box/config.json > /tmp/sb_cfg.json
 mv /tmp/sb_cfg.json /etc/sing-box/config.json
 
 # Verify presence of all mandatory rulesets before starting Sing-Box
@@ -291,7 +296,6 @@ REALITY_PUBLIC_KEY=$(echo "$KEYS" | awk '/Public/ {print $NF}' || echo "")
 REALITY_SHORT_ID=$(openssl rand -hex 8)
 REALITY_PORT=8443
 XHTTP_PORT=8444
-MASQUE_PORT=8445
 REALITY_DEST="127.0.0.1:443"
 REALITY_SNI="$MAIN_DOMAIN"
 XHTTP_PATH="xhttp"
@@ -299,7 +303,6 @@ XHTTP_PATH="xhttp"
 mkdir -p /etc/xray
 sed -e "s|{{REALITY_PORT}}|$REALITY_PORT|g" \
     -e "s|{{XHTTP_PORT}}|$XHTTP_PORT|g" \
-    -e "s|{{MASQUE_PORT}}|$MASQUE_PORT|g" \
     -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{REALITY_DEST}}|$REALITY_DEST|g" \
     -e "s|{{REALITY_SNI}}|$REALITY_SNI|g" \
@@ -321,9 +324,6 @@ try:
         elif ib.get('tag') == 'vless-reality-xhttp-in':
             clients = ib.setdefault('settings', {}).setdefault('clients', [])
             clients.append({'id': '$FIRST_USER_UUID', 'email': '$FIRST_USER_NAME'})
-        elif ib.get('tag') == 'masque-in':
-            users = ib.setdefault('settings', {}).setdefault('users', [])
-            users.append({'email': '$FIRST_USER_NAME', 'pass': '$FIRST_USER_PASS'})
     with open('/etc/xray/config.json', 'w') as f:
         json.dump(cfg, f, indent=2)
 except Exception as e:
@@ -381,8 +381,9 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     "$SCRIPT_DIR/config/templates/template-trj.json" > /opt/incy-bot/template-trj.json
 
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
-    -e "s|{{MASQUE_PORT}}|$MASQUE_PORT|g" \
-    "$SCRIPT_DIR/config/templates/template-masque.json" > /opt/incy-bot/template-masque.json
+    -e "s|{{HY2_PORT}}|$HY2_PORT|g" \
+    -e "s|{{HY2_OBFS_PASSWORD}}|$HY2_OBFS_PASSWORD|g" \
+    "$SCRIPT_DIR/config/templates/template-hy2.json" > /opt/incy-bot/template-hy2.json
 
 # Bot files & Venv
 cp "$SCRIPT_DIR/bot/bot.py" \
@@ -396,9 +397,9 @@ python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
 
-printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\nREALITY_PORT=%s\nXHTTP_PORT=%s\nMASQUE_PORT=%s\nREALITY_DEST=%s\nREALITY_SNI=%s\nXHTTP_PATH=%s\nREALITY_PRIVATE_KEY=%s\nREALITY_PUBLIC_KEY=%s\nREALITY_SHORT_ID=%s\n" \
+printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\nREALITY_PORT=%s\nXHTTP_PORT=%s\nHY2_PORT=%s\nHY2_OBFS_PASSWORD=%s\nREALITY_DEST=%s\nREALITY_SNI=%s\nXHTTP_PATH=%s\nREALITY_PRIVATE_KEY=%s\nREALITY_PUBLIC_KEY=%s\nREALITY_SHORT_ID=%s\n" \
     "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" \
-    "$REALITY_PORT" "$XHTTP_PORT" "$MASQUE_PORT" "$REALITY_DEST" "$REALITY_SNI" "$XHTTP_PATH" "$REALITY_PRIVATE_KEY" "$REALITY_PUBLIC_KEY" "$REALITY_SHORT_ID" > /opt/incy-bot/.env
+    "$REALITY_PORT" "$XHTTP_PORT" "$HY2_PORT" "$HY2_OBFS_PASSWORD" "$REALITY_DEST" "$REALITY_SNI" "$XHTTP_PATH" "$REALITY_PRIVATE_KEY" "$REALITY_PUBLIC_KEY" "$REALITY_SHORT_ID" > /opt/incy-bot/.env
 
 # Permissions: incy-bot ownership and restricted read for .env
 chown -R incy-bot:incy-bot /opt/incy-bot
@@ -433,19 +434,22 @@ systemctl restart incy-bot.service
 FIRST_USER_TOKEN=$(openssl rand -hex 16)
 VLESS_REALITY_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${REALITY_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#⚡ [Основной] VLESS-REALITY-Vision"
 VLESS_XHTTP_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${XHTTP_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F${XHTTP_PATH}&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
-MASQUE_LINK="masque://${FIRST_USER_NAME}:${FIRST_USER_PASS}@${MAIN_DOMAIN}:${MASQUE_PORT}?sni=${MAIN_DOMAIN}#🌐 [IETF] MASQUE-TLS"
+HY2_LINK="hysteria2://${FIRST_USER_PASS}@${MAIN_DOMAIN}:${HY2_PORT}/?sni=${MAIN_DOMAIN}&obfs=salamander&obfs-password=${HY2_OBFS_PASSWORD}#🚀 [Hy2] Hysteria2-Salamander"
 VLESS_WS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#🌐 [WS] VLESS-WS-TLS"
 TROJAN_WS_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#🔒 [WS] Trojan-WS-TLS"
 
-echo -e "${VLESS_REALITY_LINK}\n${VLESS_XHTTP_LINK}\n${MASQUE_LINK}\n${VLESS_WS_LINK}\n${TROJAN_WS_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
+echo -e "${VLESS_REALITY_LINK}\n${VLESS_XHTTP_LINK}\n${HY2_LINK}\n${VLESS_WS_LINK}\n${TROJAN_WS_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
 chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
 
 sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
-    -e "s|{{MASQUE_PORT}}|$MASQUE_PORT|g" \
+    -e "s|{{HY2_PORT}}|$HY2_PORT|g" \
     -e "s|{{USER_NAME}}|$FIRST_USER_NAME|g" \
     -e "s|{{USER_PASS}}|$FIRST_USER_PASS|g" \
-    "$SCRIPT_DIR/config/templates/template-masque.json" > "$WWW_DIR/${FIRST_USER_TOKEN}-masque.json"
-chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}-masque.json"
+    -e "s|\${hy2pass}|$FIRST_USER_PASS|g" \
+    -e "s|\${trjpass}|$FIRST_USER_PASS|g" \
+    -e "s|{{HY2_OBFS_PASSWORD}}|$HY2_OBFS_PASSWORD|g" \
+    "$SCRIPT_DIR/config/templates/template-hy2.json" > "$WWW_DIR/${FIRST_USER_TOKEN}-hy2.json"
+chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}-hy2.json"
 
 cat <<EOF > /opt/incy-bot/subscriptions.json
 {

@@ -281,12 +281,15 @@ def add_user_to_config(
 
         for ib in cfg.get("inbounds", []):
             tag = ib.get("tag")
+            ib_type = ib.get("type")
             if tag == "vless-in":
                 ib.setdefault("users", []).append({"name": valid_user, "uuid": new_uuid})
                 vless_added = True
             elif tag == "trojan-in":
                 ib.setdefault("users", []).append({"name": valid_user, "password": new_pass})
                 trojan_added = True
+            elif tag == "hy2-in" or ib_type == "hysteria2":
+                ib.setdefault("users", []).append({"name": valid_user, "password": new_pass})
 
         if not vless_added and not trojan_added:
             raise ConfigValidationError("В конфигурации отсутствуют секции 'vless-in' и 'trojan-in'.")
@@ -317,7 +320,7 @@ def delete_user_from_config(
     def _mutator(cfg: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
         found = False
         for ib in cfg.get("inbounds", []):
-            if ib.get("tag") in ("vless-in", "trojan-in"):
+            if ib.get("tag") in ("vless-in", "trojan-in", "hy2-in") or ib.get("type") == "hysteria2":
                 users = ib.get("users", [])
                 new_users = [u for u in users if u.get("name") != valid_user]
                 if len(new_users) != len(users):
@@ -336,6 +339,57 @@ def delete_user_from_config(
         control_runner=control_runner,
         lock_path=lock_path
     )
+
+
+def ensure_singbox_hy2_config(
+    cfg: Dict[str, Any],
+    domain: str,
+    hy2_port: int = 443,
+    obfs_password: str = "sal_sec_84729472",
+    cert_dir: str = "/etc/letsencrypt/live"
+) -> Dict[str, Any]:
+    """
+    Ensures sing-box configuration has a 'hy2-in' (Hysteria 2 with Salamander obfs) inbound.
+    """
+    inbounds = cfg.setdefault("inbounds", [])
+    has_hy2 = any(ib.get("tag") == "hy2-in" or ib.get("type") == "hysteria2" for ib in inbounds)
+    if not has_hy2:
+        cert_path = f"{cert_dir}/{domain}/fullchain.pem"
+        key_path = f"{cert_dir}/{domain}/privkey.pem"
+        initial_users = []
+        for ib in inbounds:
+            if ib.get("tag") == "trojan-in":
+                for u in ib.get("users", []):
+                    if "name" in u and "password" in u:
+                        initial_users.append({"name": u["name"], "password": u["password"]})
+                break
+
+        hy2_inbound = {
+            "type": "hysteria2",
+            "tag": "hy2-in",
+            "listen": "::",
+            "listen_port": hy2_port,
+            "users": initial_users,
+            "obfs": {
+                "type": "salamander",
+                "password": obfs_password
+            },
+            "tls": {
+                "enabled": True,
+                "server_name": domain,
+                "certificate_path": cert_path,
+                "key_path": key_path
+            }
+        }
+        inbounds.append(hy2_inbound)
+    else:
+        for ib in inbounds:
+            if ib.get("tag") == "hy2-in" or ib.get("type") == "hysteria2":
+                ib["listen_port"] = hy2_port
+                if "obfs" in ib and obfs_password:
+                    ib["obfs"]["password"] = obfs_password
+                break
+    return cfg
 
 
 def list_users_from_config(

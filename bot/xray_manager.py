@@ -72,7 +72,7 @@ def add_user_to_xray(
     user_pass: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Adds user to reality-vision, reality-xhttp, and masque inbounds in Xray config.
+    Adds user to reality-vision and reality-xhttp inbounds in Xray config.
     """
     effective_pass = user_pass or user_uuid
     found_inbounds = False
@@ -85,7 +85,6 @@ def add_user_to_xray(
 
         is_vision = (tag == "vless-reality-vision-in") or (network == "tcp" and security == "reality")
         is_xhttp = (tag == "vless-reality-xhttp-in") or (network == "xhttp" and security == "reality")
-        is_masque = (tag == "masque-in") or (proto == "masque") or (network == "masque")
 
         if is_vision:
             found_inbounds = True
@@ -104,14 +103,6 @@ def add_user_to_xray(
                 clients.append({
                     "id": user_uuid,
                     "email": username
-                })
-        elif is_masque:
-            found_inbounds = True
-            users = ib.setdefault("settings", {}).setdefault("users", [])
-            if not any(u.get("email") == username for u in users):
-                users.append({
-                    "email": username,
-                    "pass": effective_pass
                 })
 
     if not found_inbounds:
@@ -137,40 +128,15 @@ def delete_user_from_xray(config_data: Dict[str, Any], username: str) -> Dict[st
     return config_data
 
 
-def ensure_xray_masque_config(
-    config_data: Dict[str, Any],
-    domain: str,
-    masque_port: int = 8445
-) -> Dict[str, Any]:
+def remove_xray_masque_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Ensures that Xray configuration contains the MASQUE (CONNECT-IP over HTTP/3)
-    inbound listening on the given port with Let's Encrypt TLS certificates.
+    Removes legacy MASQUE inbound if present in Xray configuration.
     """
-    inbounds = config_data.setdefault("inbounds", [])
-    has_masque = any(ib.get("tag") == "masque-in" or ib.get("protocol") == "masque" for ib in inbounds)
-    if not has_masque:
-        inbounds.append({
-            "tag": "masque-in",
-            "port": masque_port,
-            "listen": "0.0.0.0",
-            "protocol": "masque",
-            "settings": {
-                "address": ["10.13.0.1/24"],
-                "users": []
-            },
-            "streamSettings": {
-                "network": "masque",
-                "security": "tls",
-                "tlsSettings": {
-                    "certificates": [
-                        {
-                            "certificateFile": f"/etc/letsencrypt/live/{domain}/fullchain.pem",
-                            "keyFile": f"/etc/letsencrypt/live/{domain}/privkey.pem"
-                        }
-                    ]
-                }
-            }
-        })
+    inbounds = config_data.get("inbounds", [])
+    config_data["inbounds"] = [
+        ib for ib in inbounds
+        if ib.get("tag") != "masque-in" and ib.get("protocol") != "masque"
+    ]
     return config_data
 
 

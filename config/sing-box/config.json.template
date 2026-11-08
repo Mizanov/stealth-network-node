@@ -61,6 +61,28 @@
         "enabled": true,
         "padding": true
       }
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-in",
+      "listen": "::",
+      "listen_port": 443,
+      "users": [
+        {
+          "name": "user_cbae62",
+          "password": "74bf972f42b94f5d"
+        }
+      ],
+      "obfs": {
+        "type": "salamander",
+        "password": "{{HY2_OBFS_PASSWORD}}"
+      },
+      "tls": {
+        "enabled": true,
+        "server_name": "{{MAIN_DOMAIN}}",
+        "certificate_path": "/etc/letsencrypt/live/{{MAIN_DOMAIN}}/fullchain.pem",
+        "key_path": "/etc/letsencrypt/live/{{MAIN_DOMAIN}}/privkey.pem"
+      }
     }
   ],
   "outbounds": [

@@ -64,6 +64,10 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         with open(self.trj_tmpl, "w", encoding="utf-8") as f:
             json.dump({"outbounds": [{"tag": "proxy", "password": ""}]}, f)
 
+        self.hy2_tmpl = os.path.join(self.test_dir, "hy2.json")
+        with open(self.hy2_tmpl, "w", encoding="utf-8") as f:
+            f.write('{"outbounds": [{"tag": "proxy-hy2", "type": "hysteria2", "server": "{{DOMAIN}}", "server_port": {{HY2_PORT}}, "password": "{{USER_PASS}}"}]}')
+
     def tearDown(self):
         shutil.rmtree(self.test_dir, ignore_errors=True)
 
@@ -83,6 +87,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             www_dir=self.www_dir,
             vless_template=self.vless_tmpl,
             trojan_template=self.trj_tmpl,
+            hy2_template=self.hy2_tmpl,
             registry_path=self.registry_path,
             lock_path=self.lock_path
         )
@@ -103,7 +108,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         self.assertIn(f"{token}.txt", files)
         self.assertIn(f"{token}-vless.json", files)
         self.assertIn(f"{token}-trj.json", files)
-        self.assertIn(f"{token}-masque.json", files)
+        self.assertIn(f"{token}-hy2.json", files)
 
         # Verify content
         with open(os.path.join(self.www_dir, f"{token}.txt"), "r") as f:
@@ -164,14 +169,15 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             www_dir=self.www_dir,
             vless_template=self.vless_tmpl,
             trojan_template=self.trj_tmpl,
+            hy2_template=self.hy2_tmpl,
             registry_path=self.registry_path,
             lock_path=self.lock_path
         )
         old_token = res1["token"]
         old_file = os.path.join(self.www_dir, f"{old_token}.txt")
-        old_masque = os.path.join(self.www_dir, f"{old_token}-masque.json")
+        old_hy2 = os.path.join(self.www_dir, f"{old_token}-hy2.json")
         self.assertTrue(os.path.exists(old_file))
-        self.assertTrue(os.path.exists(old_masque))
+        self.assertTrue(os.path.exists(old_hy2))
 
         # Rotate token
         res2 = rotate_subscription_token(
@@ -183,6 +189,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             www_dir=self.www_dir,
             vless_template=self.vless_tmpl,
             trojan_template=self.trj_tmpl,
+            hy2_template=self.hy2_tmpl,
             registry_path=self.registry_path,
             lock_path=self.lock_path
         )
@@ -191,13 +198,13 @@ class TestSubscriptionLifecycle(unittest.TestCase):
 
         # Old file MUST BE DELETED (404 for anyone with old link)
         self.assertFalse(os.path.exists(old_file))
-        self.assertFalse(os.path.exists(old_masque))
+        self.assertFalse(os.path.exists(old_hy2))
 
         # New file must exist
         new_file = os.path.join(self.www_dir, f"{new_token}.txt")
-        new_masque = os.path.join(self.www_dir, f"{new_token}-masque.json")
+        new_hy2 = os.path.join(self.www_dir, f"{new_token}-hy2.json")
         self.assertTrue(os.path.exists(new_file))
-        self.assertTrue(os.path.exists(new_masque))
+        self.assertTrue(os.path.exists(new_hy2))
 
     def test_subscription_revocation(self):
         """Revoking subscription removes all files and deletes registry entry."""
