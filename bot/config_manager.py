@@ -126,11 +126,12 @@ def default_control_runner(action: str, target: Optional[str] = None) -> subproc
 
 
 def atomic_modify_singbox_config(
-    mutator_fn: Callable[[Dict[str, Any]], Tuple[Dict[str, Any], Any]],
+    mutator_fn: Optional[Callable[[Dict[str, Any]], Tuple[Dict[str, Any], Any]]] = None,
     config_path: str = "/etc/sing-box/config.json",
     backup_path: Optional[str] = None,
     control_runner: Callable[..., Any] = default_control_runner,
-    lock_path: str = DEFAULT_LOCK_FILE
+    lock_path: str = DEFAULT_LOCK_FILE,
+    mutation_fn: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
 ) -> Any:
     """
     Performs safe transactional mutation of sing-box configuration:
@@ -145,6 +146,12 @@ def atomic_modify_singbox_config(
     9. On reload/status failure: triggers automatic rollback from backup.
     10. Cleans up temporary resources.
     """
+    if mutator_fn is None:
+        if mutation_fn is not None:
+            mutator_fn = lambda cfg: (mutation_fn(cfg), True)
+        else:
+            raise ValueError("Either mutator_fn or mutation_fn must be provided.")
+
     if backup_path is None:
         backup_path = f"{config_path}.bak"
 
