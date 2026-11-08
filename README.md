@@ -1,20 +1,23 @@
 <div align="center">
 
-# 🚀 tgproxy-vpsvless-tgbot
+# 🚀 Multi-Transport Stealth VPN Node
 
-### 🛡️ Multi-Transport Stealth VPN (Xray REALITY Vision & XHTTP, Sing-Box Hysteria 2 + WS TLS) & Telegram Web Proxy
+### 🛡️ Xray REALITY Vision & XHTTP | Sing-Box Hysteria 2 Salamander & WS TLS | Dedicated Telegram Bot
 
-Готовое решение «под ключ» для развёртывания на чистом VPS: мультитранспортный современный VPN на базе **Xray-Core** (высокоскоростной **VLESS + REALITY + Vision**, анти-DPI **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (скоростной **Hysteria 2** с обфускацией **Salamander** на порту **443 UDP**, legacy VLESS / Trojan WS + TLS), официальный **Telegram Web Proxy** (`tproxy-server`), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок (5 в 1) для **Incy, Happ, Sing-Box, Shadowrocket, v2rayN / v2rayNG, Streisand, Surge, Hiddify, Nekobox** и других современных клиентов.
+Готовое решение «под ключ» для развёртывания на чистом VPS: легковесный (<120 МБ RAM, без Docker), мультитранспортный современный VPN на базе **Xray-Core** (высокоскоростной **VLESS + REALITY + Vision**, анти-DPI **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (скоростной **Hysteria 2** с обфускацией **Salamander** на порту **443 UDP**, legacy VLESS / Trojan WS + TLS), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации ключей и универсальных подписок (5 в 1) для **Incy, Happ, Sing-Box, Shadowrocket, v2rayN / v2rayNG, Streisand, Surge, Hiddify, Nekobox** и других современных клиентов.
 
 [![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-orange?logo=ubuntu)](https://ubuntu.com)
 [![Debian 12](https://img.shields.io/badge/Debian-12-red?logo=debian)](https://debian.org)
 [![Sing-Box](https://img.shields.io/badge/Sing--Box-1.14%2B%20(Hy2)-blue?logo=box)](https://sing-box.sagernet.org)
 [![Xray-Core](https://img.shields.io/badge/Xray--Core-REALITY%20Vision%20%26%20XHTTP-blueviolet?logo=x)](https://github.com/XTLS/Xray-core)
 [![Hysteria 2](https://img.shields.io/badge/Hysteria%202-QUIC%20%2B%20Salamander-orange?logo=fastapi)](https://v2.hysteriago.com)
+[![RAM](https://img.shields.io/badge/RAM_Usage-%3C120_MB-brightgreen)](#)
 [![Design: AI Design Skills](https://img.shields.io/badge/Design-AI%20Design%20Skills-black?logo=figma)](https://github.com/elayadesign/ai-design-skills)
 [![Design: Hallmark Anti-Slop](https://img.shields.io/badge/Design-Hallmark%20Anti--Slop-blue?logo=ghost)](https://github.com/Nutlope/hallmark)
-[![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED?logo=docker)](https://docker.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> 💡 **Ищете NaiveProxy, Telegram Web Proxy и каскадный шлюз через сервер в РФ?**  
+> Обратите внимание на наш второй репозиторий: **[stealth-proxy-cascade](https://github.com/your-username/stealth-proxy-cascade)** — специализированный узел с Caddy v2, NaiveProxy (Chromium stack), Telegram Web Proxy и Smart Russian Cascade.
 
 </div>
 
@@ -23,7 +26,7 @@
 ## 🌟 Ключевые возможности
 
 * **Мультитранспортная архитектура нового поколения (Xray-Core + Sing-Box)**:
-  * ⚡ **Основной VPN — VLESS + REALITY + Vision (TCP) на порту 8443**: 0-RTT, минимальные накладные расходы, сверхвысокая скорость.
+  * ⚡ **Основной VPN — VLESS + REALITY + Vision (TCP) на порту 8443**: 0-RTT, минимальные накладные расходы, сверхвысокая скорость и минимальный расход батареи на смартфонах.
   * 🛡️ **Резервный VPN — VLESS + XHTTP + REALITY на порту 8444**: новейший потоковый транспорт Xray, эмулирующий стандартные HTTP-запросы для обхода агрессивных блокировок ТСПУ/DPI.
   * 🚀 **Скоростной Hysteria 2 (Hy2) с обфускацией Salamander на порту 443 (UDP)**: модифицированный протокол QUIC со встроенным контролем перегрузок Brutal CC и обфускацией заголовков `salamander`. Работает на стандартном порту 443/UDP (HTTP/3), обеспечивая рекордную скорость на нестабильных каналах и 100% защиту от блокировок нестандартных портов провайдерами.
   * 🔒 **Self-SNI маскировка (Защита от бана за чужой SNI)**: SNI указывает строго на **собственный домен сервера**, а fallback REALITY направляется на локальный Nginx (`127.0.0.1:443`). При проверках цензоров IP-адрес соединения на 100% совпадает с DNS A-записью домена, устраняя подозрения на SNI-спуфинг.
@@ -35,45 +38,26 @@
     3. `🚀 [Hy2] Hysteria2-Salamander` (443/udp, QUIC, Salamander obfs, TLS 1.3)
     4. `🌐 [WS] VLESS-WS-TLS` (443/tcp, ws)
     5. `🔒 [WS] Trojan-WS-TLS` (443/tcp, ws)
-  * Автоматическая генерация **QR-кодов** для мгновенного сканирования камерой в приложении.
   * Чистые `.json` профили для оригинального ядра Sing-Box с селектором outbounds (`vless-reality` по умолчанию) и правилами обхода блокировок (AntiZapret, GeoIP, GeoSite).
   * Готовый клиентский конфиг `*-hy2.json` для Sing-Box, Shadowrocket, Nekobox и других клиентов с поддержкой Hysteria 2.
-* **Официальный Telegram Web Proxy ([tproxy-server](https://github.com/telegramdesktop/tproxy-server))**:
-  * Новый стандарт веб-прокси Telegram от команды Telegram Desktop.
-  * Трафик маскируется под легитимный HTTPS-сайт через WebSocket/HTTPS.
-  * Автоматическая изоляция в Docker и проксирование через Nginx.
 * **Умный Telegram-бот управления**:
   * Быстрая выдача ключей командой `/new <имя>` или кнопкой меню.
   * Управление списком пользователей (`/list`, `/del`).
   * 📊 **Учёт сетевого трафика каждого пользователя (`/stats`)**: статистика скачивания (download) и отдачи (upload) в реальном времени, постоянное сохранение истории при перезагрузках VPS, быстрое обнуление трафика (`/rst`).
-  * Мониторинг состояния сервера (`/status` — Sing-Box, Xray-Core, Nginx, Docker, CPU, RAM, диск и суммарный сетевой трафик).
-  * Выдача ссылки на Telegram Web Proxy в 1 клик.
+  * Мониторинг состояния сервера (`/status` — Sing-Box, Xray-Core, Nginx, CPU, RAM, диск и суммарный сетевой трафик).
 * **Защита от активного зондирования РКН / ТСПУ (Anti-Probing & Self-SNI Stealth)**:
   * **Живой White-Site (Decoy Portfolio)**: корень домена отдаёт полноценный, эстетичный сайт системного инженера / облачного архитектора с кодом **200 OK** (с тёмной темой, интерактивными элементами, проектами, статьями, `robots.txt` и `sitemap.xml`).
   * **Стандарты [AI Design Skills](https://github.com/elayadesign/ai-design-skills)**: ультралёгкая архитектура без тяжелых JS-фреймворков (~35 КБ, отклик < 25 мс, 100/100 в Lighthouse) с премиальной типографикой (Manrope + Geist Mono) и матовыми поверхностями.
-  * **Портал шлюза на поддомене**: поддомен Telegram Web Proxy (`tg.`) отображает техническую документацию шлюза доставки вебхуков.
   * **Никаких дефолтных редиректов**: сканеры цензоров не видят редиректов на поисковики или ошибок 403/404 — сервер выглядит как обычный легитимный IT-проект.
   * **Полная изоляция секретных путей**: прокси-пути VLESS/Trojan и веб-подписки доступны только по строго секретным длинным хэш-ссылкам.
-* **Высокий уровень безопасности и отказоустойчивости**:
-  * **Транзакционный менеджер Xray (`xray_manager.py`)**: блокировки `fcntl.flock`, предварительная валидация через хелпер, автоматический откат (`.bak`) при сбоях.
-  * **Автоматический фаервол UFW**: открыты строго порты `22`, `80`, `443`, `8443`, `8444`. Внутренние порты (10443, 11443, 8080, 2398) привязаны строго к `127.0.0.1`.
-  * **Rate Limiting в Nginx**: защита пути подписок от сканирования и брутфорса (`limit_req_zone rate=60r/m`).
-  * **Защита доступа к боту**: строгий whitelist по Telegram User ID (`TELEGRAM_ADMIN_IDS`).
-  * **TCP BBR + 2GB Swap**: оптимизация сети и защита от нехватки памяти (OOM Killer).
-  * **Let's Encrypt**: автоматический выпуск и автопродление TLS-сертификатов через Certbot.
-
----
-
-## 🎨 Дизайн-система и маскировка ([AI Design Skills](https://github.com/elayadesign/ai-design-skills) + [Hallmark Anti-AI-Slop](https://github.com/Nutlope/hallmark))
-
-Сайты-маскировки спроектированы в строгом соответствии с дизайн-системами [**AI Design Skills**](https://github.com/elayadesign/ai-design-skills) и стандартами **Anti-AI-Slop** от [**Hallmark** (`Nutlope/hallmark`)](https://github.com/Nutlope/hallmark). Это гарантирует максимальную правдоподобность, эстетику уровня Linear / Vercel и полное отсутствие «нейросетевых штампов», по которым автоматические системы цензуры вычисляют сайты-заглушки:
-
-* ⚡ **Zero-Bloat архитектура (чистый HTML5/CSS3)**: никаких тяжеловесных JS-фреймворков (React, Next.js, Vue). Полный вес страницы составляет всего **~35 КБ**, время отдачи сервером Nginx — **< 20 мс**, оценка в Google Lighthouse — **100/100**.
-* 🖥️ **Реальные артефакты вместо выдуманных метрик (Hallmark Rule 8)**: отказ от шаблонных плашек «99.9% аптайм / 10k клиентов». В Hero-секции размещён **интерактивный консольный инспектор параметров ноды**, выводящий реальные характеристики сетевого ядра (Linux 6.8, TCP BBR, drop 444 stealth, TLS 1.3 ECDSA).
-* ✍️ **Типографика без шаблонов (B1 Rule & Hallmark Rule 9)**: полный отказ от стандартных шрифтов (Inter/Roboto/Arial). Используется эстетичная связка **Manrope** (заголовки и текст) и **Geist Mono** (данные, код, бейджи). Все метки и теги оформлены естественным строчным регистром (sentence-case) без искусственного капса и трекинга.
-* 🌐 **Архитектура шлюза в стиле Hallmark Cobalt Theme**: поддомен `tg.` оформлен как полноценная интерактивная документация микросервисного API-шлюза доставки вебхуков (с реальным `curl`-запросом, структурой ответа и матрицей эндпоинтов `/api/v1/dispatch`, `/healthz`, `/metrics`).
-* 🖤 **Глубокие матовые поверхности (B4 Rule)**: палитра `#000000`, `#111111`, `#181818` без кричащих сине-фиолетовых градиентов.
-* 🛡️ **Анти-зондирование цензоров**: благодаря безупречному визуальному и техническому исполнению автоматические активные зонды (Active Probing РКН/ТСПУ) классифицируют домен как легитимный production-сервер инженера и снимают любые подозрения на прокси.
+* **Сверхэффективное использование ресурсов**:
+  * Исключение Docker позволило снизить фоновое потребление оперативной памяти до **<120 МБ**, что делает сервер идеальным для базовых VPS с 1 CPU и 1 GB RAM за 1.5–3 €/мес.
+* **Комплексная безопасность Zero-Trust**:
+  * Изолированный системный пользователь `incy-bot` без shell-доступа.
+  * Автоматический фаервол UFW с закрытием всех внутренних портов.
+  * Защита от брутфорса SSH через Fail2ban (бан на 24 часа).
+  * Тюнинг сетевого стека Linux (BBR, SYN Cookies, защита от IP-спуфинга).
+  * Автоматический ежедневный бэкап настроек и сертификатов в `/var/backups/vps/`.
 
 ---
 
@@ -90,15 +74,15 @@
  └─ Self-SNI -> 443    └─ Self-SNI -> 443           ├─ Salamander Obfuscation │
                                                     └─ Let's Encrypt TLS 1.3  ┌────────┴────────┐
                                                                               ▼                 ▼
-                                                                      [ Sing-Box Core ] [ tgweb-proxy ]
-                                                                      ├─ :11443 VLESS ws└─ :8080 (Docker)
+                                                                      [ Sing-Box Core ] [ Decoy Website ]
+                                                                      ├─ :11443 VLESS ws  (Portfolio 200 OK)
                                                                       ├─ :10443 Trojan ws
                                                                       └─ Подписки /var/www/
 ```
 
 ---
 
-## 🚀 Протокол нового поколения: Hysteria 2 (Hy2) с обфускацией Salamander
+## 🚀 Протокол Hysteria 2 (Hy2) с обфускацией Salamander
 
 В комплекс интегрирован протокол **Hysteria 2** — современный скоростной прокси-протокол на базе модифицированного **QUIC (HTTP/3)**, созданный специально для работы в условиях нестабильных, перегруженных сетей с высоким уровнем потери пакетов (packet loss) и агрессивной фильтрации DPI.
 
@@ -109,7 +93,7 @@
 
 ### ⚡ Почему Hysteria 2 превосходит традиционные протоколы?
 
-1. **Brutal Congestion Control (Агрессивная доставка пакетов)**:
+1. **Brutal Congestion Control**:
    * Обычный TCP при малейшей потере пакетов (1-2%) аварийно снижает скорость передачи в 2-4 раза.
    * Hysteria 2 использует собственный алгоритм контроля перегрузок Brutal CC, который игнорирует случайные потери радиоканала и принудительно выдаёт максимальную пропускную способность, даже если сеть теряет до 10-30% пакетов.
 2. **Отсутствие Head-of-Line Blocking**:
@@ -119,114 +103,41 @@
 4. **0-RTT рукопожатие**:
    * Мгновенный отклик при открытии сайтов и приложений.
 
-### 📱 Поддерживаемые клиенты
-* **Shadowrocket** (iOS / iPadOS / macOS Apple Silicon) — полная поддержка URI `hysteria2://` с параметрами `obfs=salamander&obfs-password=...`.
-* **Incy / Happ** (iOS / Android) — автоматический импорт через ссылку подписки.
-* **Sing-Box** (iOS / Android / Windows / macOS / Linux) — через конфигурационный файл `{token}-hy2.json`.
-* **Nekobox / v2rayN** — полная поддержка ссылок Hysteria 2.
+---
+
+## 📋 Требования к серверу
+
+* **ОС**: Ubuntu 22.04 LTS / Ubuntu 24.04 LTS или Debian 12 (чистая установка).
+* **Характеристики**: 1 vCPU, 1 GB RAM (достаточно даже минимального тарифа за 1.5–3 €/мес на HostVDS), 10 GB диска.
+* **Порты**: Открытые порты 22, 80, 443 (TCP и UDP), 8443, 8444 (TCP).
+* **Домен**: Единственный собственный домен (например, `vpn.yourdomain.com` или бесплатный от DuckDNS `yourname.duckdns.org`), направленный на IPv4 сервера. **Второй поддомен больше не требуется!**
 
 ---
 
----
+## ⚡ Быстрая установка
 
-## 🛡️ Многоуровневая архитектура безопасности (Zero-Trust & Anti-Probing)
+Подключитесь к вашему VPS по SSH с правами `root`:
 
-Комплекс спроектирован с расчётом на противодействие современным системам DPI, автоматическим зондам цензоров (РКН/ТСПУ) и ботнетам, сканирующим диапазоны IP-адресов:
-
-### 1. 🥷 Стелс-режим Nginx (Anti-Scanner & Drop 444)
-* **Защита от сканирования по IP**: При прямом обращении к серверу по IP-адресу (`http://IP` или `https://IP`), а также при запросах с невалидным SNI, Nginx мгновенно закрывает TCP-соединение с кодом `444` (`return 444;`).
-* **Нулевая утечка метаданных**: В отличие от стандартного ответа `403 Forbidden` или `404 Not Found`, ответ `444` не передаёт клиенту никаких HTTP-заголовков или баннеров Nginx. Для сканеров Shodan, Censys и сетевых зондов РКН сервер выглядит как полностью мёртвый или выключенный хост.
-* **Порт 80 без утечек**: Порт 80 перенаправляет на HTTPS (`301 Moved Permanently`) **только** легитимные запросы с зарегистрированным доменным именем (`{{DOMAIN}}`, `{{TG_DOMAIN}}`). Все остальные запросы по IP сбрасываются.
-* **Живой White-Site (Decoy Portfolio)**: При переходе по легитимному домену браузер получает полноценный сайт системного инженера с HTTP 200 OK, статьями и интерактивными элементами по стандартам [AI Design Skills](https://github.com/elayadesign/ai-design-skills).
-
-### 2. 🧱 Защита сетевого стека ядра Linux (`/etc/sysctl.d/99-security.conf`)
-* **Защита от SYN Flood**: `net.ipv4.tcp_syncookies = 1` и увеличенный буфер `tcp_max_syn_backlog = 8192` гарантируют доступность сервера даже при масштабных DDoS-атаках на исчерпание полуоткрытых соединений.
-* **Защита от IP-спуфинга**: Включена строгая проверка обратного маршрута (`rp_filter = 1` для всех интерфейсов) — пакеты с поддельными адресами отправителя отбрасываются ядром.
-* **Блокировка атак через ICMP**: Запрещена обработка и отправка ICMP Redirects (`accept_redirects = 0`, `send_redirects = 0`), а также игнорируются широковещательные эхо-запросы (`icmp_echo_ignore_broadcasts = 1`), что исключает Smurf-атаки и MITM через подмену маршрутов.
-* **TIME-WAIT Assassination Protection**: `net.ipv4.tcp_rfc1337 = 1` предотвращает сброс существующих TCP-соединений поддельными пакетами RST в состоянии TIME-WAIT.
-* **TCP BBR + Оптимизация очередей**: `default_qdisc = fq` и `tcp_congestion_control = bbr` обеспечивают минимальный пинг и максимальную пропускную способность туннелей.
-
-### 3. 🔑 Усиленная защита SSH (Вход только по ключам)
-* **Пароли полностью отключены**: Параметры `PasswordAuthentication no` и `KbdInteractiveAuthentication no` полностью исключают возможность подбора паролей к SSH.
-* **Запрет root по паролю**: `PermitRootLogin prohibit-password` гарантирует, что вход под root возможен исключительно по криптографическим ключам (Ed25519 или RSA 4096-bit).
-* **Конфигурация в drop-in каталоге**: Настройки зафиксированы в `/etc/ssh/sshd_config.d/99-security.conf`, что защищает их от перезаписи при штатных обновлениях пакета `openssh-server`.
-
-### 4. 🚨 Fail2ban + UFW (Автобан ботнетов на уровне Netfilter)
-* **Интеграция с UFW**: Заблокированные IP-адреса передаются напрямую в правила фаервола Netfilter/iptables (`banaction = ufw`), блокируя весь входящий трафик от атакующего на уровне ядра.
-* **Агрессивный период блокировки**: При 5 неудачных попытках авторизации за 10 минут (`maxretry = 5`, `findtime = 10m`) IP-адрес атакующего отправляется в бан на **24 часа** (`bantime = 1d`).
-* **Мониторинг через systemd**: Использование `backend = systemd` обеспечивает мгновенную обработку событий SSH без задержек на чтение файлов журналов.
-
-### 5. 🛡️ Фаервол UFW и сетевая изоляция сервисов
-* **Политика по умолчанию**: `default deny incoming` — все порты закрыты, кроме явно разрешённых.
-* **Строго необходимые открытые порты**: `22` (SSH), `80` (HTTP для валидации Let's Encrypt и безопасного редиректа), `443/tcp` (HTTPS Nginx & Sing-Box WS), `443/udp` (Hysteria 2 QUIC с обфускацией Salamander), `8443` (Xray REALITY Vision), `8444` (Xray XHTTP REALITY).
-* **Локальная изоляция (Localhost Only)**: Все сервисы туннелирования привязаны строго к интерфейсу loopback `127.0.0.1`:
-  * `127.0.0.1:11443` — Sing-Box VLESS WebSocket inbound.
-  * `127.0.0.1:10443` — Sing-Box Trojan WebSocket inbound.
-  * `127.0.0.1:8080` — Telegram Web Proxy (`tproxy-server`).
-  * `127.0.0.1:2398` — Внутренний транспорт MTProxy.
-  Прямое подключение к этим портам извне технически невозможно.
-
-### 6. 🔄 Автоматические патчи безопасности (Zero-Day Protection)
-* Служба `unattended-upgrades` автоматически скачивает и применяет обновления безопасности дистрибутива (Ubuntu Security / Debian Security) в фоновом режиме, закрывая известные CVE без необходимости ручного администрирования.
-
-### 7. 🤖 Защита Telegram-бота и раздачи подписок
-* **Whitelist администраторов**: Бот реагирует на команды только тех пользователей, чьи числовые ID указаны в `TELEGRAM_ADMIN_IDS`. Посторонние пользователи получают отказ в доступе.
-* **Изоляция шаблонов**: Шаблоны конфигураций клиентов хранятся в защищённом каталоге `/opt/incy-bot/` отдельно от базы активных ключей. Удаление всех пользователей не повреждает систему генерации.
-* **Rate Limiting подписок**: В Nginx настроено ограничение частоты запросов к подпискам (`limit_req_zone rate=60r/m burst=20`), предотвращающее DoS и перебор файлов подписок.
-
----
-
-## 📋 Системные требования
-
-* **ОС**: Ubuntu 22.04 LTS / 24.04 LTS или Debian 12 (архитектура `x86_64` / `amd64`).
-* **Права**: `root` доступ.
-* **Доменное имя**:
-  * Настроенная DNS A-запись основного домена на IP сервера (например, `vpn.example.com`).
-  * Настроенная DNS A-запись поддомена для Telegram Proxy (например, `tg.example.com`).
-  * *Либо бесплатный домен DuckDNS с поддержкой wildcard (например, `yourname.duckdns.org` и `tg.yourname.duckdns.org`).*
-* **Telegram Bot Token**:
-  * Создайте бота через [@BotFather](https://t.me/BotFather) и скопируйте API Token.
-* **Ваш Telegram ID**:
-  * Узнайте ваш цифровой ID через [@userinfobot](https://t.me/userinfobot) (для авторизации в боте).
-
----
-
-## 🚀 Быстрый старт (Установка)
-
-### 1. Подключитесь к вашему серверу по SSH
 ```bash
-ssh root@YOUR_SERVER_IP
-```
-
-### 2. Клонируйте репозиторий
-```bash
-git clone https://github.com/Mizanov/tgproxy-vpsvless-tgbot.git /opt/tgproxy-vpsvless-tgbot
+git clone https://github.com/your-username/tgproxy-vpsvless-tgbot.git /opt/tgproxy-vpsvless-tgbot
 cd /opt/tgproxy-vpsvless-tgbot
-```
-
-### 3. Запустите автоматический установщик
-```bash
 chmod +x install.sh
 ./install.sh
 ```
 
-Установщик интерактивно спросит:
-1. **Main Domain**: ваш основной домен (например, `vpn.example.com` или `myname.duckdns.org`).
-2. **Telegram Subdomain**: поддомен для Web Proxy (например, `tg.example.com` или `tg.myname.duckdns.org`).
-3. **Email**: почта для выпуска SSL-сертификатов Let's Encrypt.
-4. **Telegram Bot Token**: токен, полученный от `@BotFather`.
-5. **Telegram Admin ID**: ваш цифровой ID от `@userinfobot`.
+В процессе установки скрипт запросит:
+1. **Main Domain**: Ваш основной домен (A-запись, направленная на IP вашего сервера).
+2. **Email**: Email для выпуска бесплатных SSL-сертификатов Let's Encrypt.
+3. **Telegram Bot Token**: Токен, полученный от бота [@BotFather](https://t.me/BotFather).
+4. **Telegram Admin ID**: Ваш числовой Telegram ID (можно узнать через бота [@userinfobot](https://t.me/userinfobot)).
 
-> 💡 **Автоматический режим без диалога:**
-> Вы можете заранее скопировать `.env.example` в `.env`, заполнить все поля и запустить `./install.sh` — скрипт применит настройки без лишних вопросов.
+Скрипт автоматически настроит и запустит все компоненты за 2–3 минуты.
 
 ---
 
-## 📱 Использование
+## 📱 Управление через Telegram-бота
 
-### 1. Управление через Telegram-бота
-
-Откройте вашего бота в Telegram и отправьте `/start`. Вам будет доступно удобное кнопочное меню:
+### 1. Команды бота
 
 * **`➕ Создать ключ`** или команда `/new <имя>`:
   * Бот мгновенно сгенерирует уникальный UUID и конфиг.
@@ -234,14 +145,13 @@ chmod +x install.sh
   * Ссылку на универсальную подписку (`https://.../<user>.txt`).
   * Прямую строку `vless://...` (копируется в один клик).
   * Ссылку на полный `.json` профиль для Sing-Box.
+  * Кнопку для получения скоростного конфига **Hysteria 2**.
 * **`👥 Список ключей`** или команда `/list`:
   * Список всех пользователей с отображением объёма использованного трафика (скачано/отдано), кнопками полной информации и удаления.
 * **`📊 Трафик пользователей`** или команда `/stats`:
   * Сводная статистика сетевого трафика по всему серверу и детализация по каждому пользователю с сортировкой по потреблению. В карточке пользователя доступен сброс счётчика трафика.
-* **`🌐 Telegram Web Proxy`** или команда `/proxy`:
-  * Получение ссылки и кнопки для подключения Telegram Web Proxy в один клик.
 * **`📊 Статус сервера`** или команда `/status`:
-  * Мониторинг служб Sing-Box, Xray-Core, Nginx, Docker-контейнера прокси, суммарного сетевого трафика VPN, свободной памяти и диска.
+  * Мониторинг служб Sing-Box, Xray-Core, Nginx, суммарного сетевого трафика VPN, свободной памяти и диска.
 
 ### 2. Подключение в клиентских приложениях
 
@@ -261,12 +171,6 @@ chmod +x install.sh
 * **Nekobox / v2rayN / Sing-Box (Десктопные клиенты)**:
   * Нажмите кнопку **«🚀 Hysteria2 JSON»** в боте и импортируйте готовый JSON-конфиг для скоростного туннелирования.
 
-### 3. Подключение Telegram Web Proxy
-
-1. Отправьте боту команду `/proxy` (или нажмите кнопку «🌐 Telegram Web Proxy»).
-2. Нажмите на кнопку **«🚀 Подключить в Telegram»** (или перейдите по ссылке `https://t.me/webproxy?server=...&secret=...`).
-3. В клиенте Telegram нажмите **«Включить прокси»**.
-
 ---
 
 ## 🛠 Обслуживание и команды
@@ -274,7 +178,6 @@ chmod +x install.sh
 ```bash
 # Проверка статуса всех компонентов
 systemctl status xray sing-box nginx incy-bot
-docker ps
 
 # Просмотр логов Telegram-бота
 journalctl -u incy-bot.service -f
@@ -284,9 +187,6 @@ journalctl -u xray -f
 
 # Просмотр логов ядра Sing-Box
 journalctl -u sing-box -f
-
-# Получить текущую ссылку Telegram Web Proxy из консоли
-docker exec tgweb-proxy show-link
 
 # Проверка заблокированных IP в Fail2ban
 fail2ban-client status sshd
@@ -308,8 +208,21 @@ certbot renew --dry-run
 
 # Перезапуск сервисов при необходимости
 systemctl restart xray sing-box nginx incy-bot fail2ban
-docker restart tgweb-proxy
 ```
+
+---
+
+## 🔄 Обновление
+
+Для обновления существующей системы выполните:
+
+```bash
+cd /opt/tgproxy-vpsvless-tgbot
+git pull
+sudo bash update.sh
+```
+
+Скрипт выполнит атомарное обновление конфигураций без разрыва активных соединений пользователей.
 
 ---
 
@@ -323,10 +236,8 @@ chmod +x uninstall.sh
 ./uninstall.sh
 ```
 
-Скрипт корректно остановит и удалит контейнер `tgweb-proxy`, удалит службы `incy-bot` и Sing-Box, очистит файлы конфигураций и веб-директории.
-
 ---
 
 ## 📄 Лицензия
 
-Проект распространяется под открытой лицензией [MIT](LICENSE).
+MIT License. Свободно для частного и коммерческого использования.

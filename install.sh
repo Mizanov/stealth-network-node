@@ -69,7 +69,6 @@ prompt_var() {
 }
 
 prompt_var MAIN_DOMAIN "Enter your Main Domain (e.g., vpn.domain.com or domain.duckdns.org)"
-prompt_var TG_DOMAIN "Enter your Telegram Proxy Subdomain (e.g., tg.domain.com)" "tg.$MAIN_DOMAIN"
 prompt_var ACME_EMAIL "Enter your Email for Let's Encrypt certificates" "admin@$MAIN_DOMAIN"
 prompt_var TELEGRAM_BOT_TOKEN "Enter your Telegram Bot Token from @BotFather"
 prompt_var TELEGRAM_ADMIN_IDS "Enter your Telegram User ID (numeric, from @userinfobot)"
@@ -85,7 +84,6 @@ FIRST_USER_NAME="user_admin"
 
 info "Detected Configuration:"
 echo "  • Main Domain: $MAIN_DOMAIN"
-echo "  • TG Web Proxy Subdomain: $TG_DOMAIN"
 echo "  • Email: $ACME_EMAIL"
 echo "  • Telegram Bot: Configured"
 echo "  • Admin ID: $TELEGRAM_ADMIN_IDS"
@@ -101,22 +99,7 @@ fi
 info "Updating repositories and installing base packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip docker.io unzip
-
-# Enable Docker with log rotation limits (prevent disk saturation)
-mkdir -p /etc/docker
-cat << 'EOF' > /etc/docker/daemon.json
-{
-  "log-driver": "json-file",
-  "log-opts": {
-    "max-size": "10m",
-    "max-file": "3"
-  }
-}
-EOF
-systemctl daemon-reload >/dev/null 2>&1 || true
-systemctl enable --now docker
-systemctl reload docker 2>/dev/null || systemctl restart docker 2>/dev/null || true
+apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip unzip
 
 # 5. Enable BBR
 info "Enabling TCP BBR..."
@@ -132,7 +115,7 @@ mkdir -p /etc/nginx
 systemctl stop nginx >/dev/null 2>&1 || true
 
 certbot certonly --standalone --preferred-challenges http --agree-tos \
-    --email "$ACME_EMAIL" -d "$MAIN_DOMAIN" -d "$TG_DOMAIN" \
+    --email "$ACME_EMAIL" -d "$MAIN_DOMAIN" \
     --no-eff-email --non-interactive --keep-until-expiring
 
 # Configure zero-downtime renewal via webroot and automatic Nginx reload hook
@@ -152,7 +135,6 @@ if [ -f "$RENEWAL_CONF" ]; then
         cat << EOF >> "$RENEWAL_CONF"
 [[webroot_map]]
 ${MAIN_DOMAIN} = /var/www/site
-${TG_DOMAIN} = /var/www/site
 EOF
     fi
 fi
@@ -191,7 +173,6 @@ info "Deploying decoy stealth portfolio website..."
 if [ -d "$SCRIPT_DIR/site" ]; then
     cp -r "$SCRIPT_DIR/site/"* /var/www/site/
     sed -i "s|{{MAIN_DOMAIN}}|$MAIN_DOMAIN|g" /var/www/site/*.html /var/www/site/*.xml /var/www/site/robots.txt /var/www/site/.well-known/* 2>/dev/null || true
-    sed -i "s|{{TG_DOMAIN}}|$TG_DOMAIN|g" /var/www/site/tg/*.html 2>/dev/null || true
 fi
 chown -R www-data:www-data /var/www/site
 
@@ -243,33 +224,18 @@ systemctl restart sing-box
 
 # 10. Configure Nginx
 info "Deploying Nginx configuration..."
-sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g"     -e "s|{{TG_DOMAIN}}|$TG_DOMAIN|g"     -e "s|{{SUBS_PATH}}|$SUBS_PATH|g"     -e "s|{{RULESET_PATH}}|$RULESET_PATH|g"     -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g"     -e "s|{{VLESS_PATH}}|$VLESS_PATH|g"     "$SCRIPT_DIR/config/nginx/nginx.conf.template" > /etc/nginx/nginx.conf
+sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
+    -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
+    -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
+    -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
+    -e "s|{{VLESS_PATH}}|$VLESS_PATH|g" \
+    "$SCRIPT_DIR/config/nginx/nginx.conf.template" > /etc/nginx/nginx.conf
 
 nginx -t
 systemctl enable --now nginx
 systemctl restart nginx
 
-# 11. Run Telegram Web Proxy (Docker)
-info "Starting Telegram Web Proxy..."
-docker stop tgweb-proxy >/dev/null 2>&1 || true
-docker rm tgweb-proxy >/dev/null 2>&1 || true
-
-docker run -d --name tgweb-proxy --restart unless-stopped \
-    -p 127.0.0.1:8080:8080 \
-    -e "TPROXY_HOSTNAME=$TG_DOMAIN" \
-    -e "TLS_MODE=off" \
-    -e "TRUSTED_PROXIES=private_ranges" \
-    -v tgweb-data:/data \
-    --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL \
-    --security-opt no-new-privileges \
-    grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45
-
-sleep 3
-if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
-    docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
-fi
-
-# 11.5 Setup Xray-Core (VLESS REALITY Vision & XHTTP)
+# 11. Setup Xray-Core (VLESS REALITY Vision & XHTTP)
 info "Setting up Xray-Core for high-speed REALITY & anti-DPI XHTTP..."
 ARCH=$(uname -m)
 case "$ARCH" in
@@ -397,8 +363,8 @@ python3 -m venv /opt/incy-bot/venv
 /opt/incy-bot/venv/bin/pip install --upgrade pip >/dev/null
 /opt/incy-bot/venv/bin/pip install -r "$SCRIPT_DIR/bot/requirements.txt" >/dev/null
 
-printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nTG_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\nREALITY_PORT=%s\nXHTTP_PORT=%s\nHY2_PORT=%s\nHY2_OBFS_PASSWORD=%s\nREALITY_DEST=%s\nREALITY_SNI=%s\nXHTTP_PATH=%s\nREALITY_PRIVATE_KEY=%s\nREALITY_PUBLIC_KEY=%s\nREALITY_SHORT_ID=%s\n" \
-    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$TG_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" \
+printf "TELEGRAM_BOT_TOKEN=%s\nTELEGRAM_ADMIN_IDS=%s\nMAIN_DOMAIN=%s\nSUBS_PATH=%s\nVLESS_PATH=%s\nTROJAN_PATH=%s\nREALITY_PORT=%s\nXHTTP_PORT=%s\nHY2_PORT=%s\nHY2_OBFS_PASSWORD=%s\nREALITY_DEST=%s\nREALITY_SNI=%s\nXHTTP_PATH=%s\nREALITY_PRIVATE_KEY=%s\nREALITY_PUBLIC_KEY=%s\nREALITY_SHORT_ID=%s\n" \
+    "$TELEGRAM_BOT_TOKEN" "$TELEGRAM_ADMIN_IDS" "$MAIN_DOMAIN" "$SUBS_PATH" "$VLESS_PATH" "$TROJAN_PATH" \
     "$REALITY_PORT" "$XHTTP_PORT" "$HY2_PORT" "$HY2_OBFS_PASSWORD" "$REALITY_DEST" "$REALITY_SNI" "$XHTTP_PATH" "$REALITY_PRIVATE_KEY" "$REALITY_PUBLIC_KEY" "$REALITY_SHORT_ID" > /opt/incy-bot/.env
 
 # Permissions: incy-bot ownership and restricted read for .env
@@ -481,8 +447,7 @@ if [ -f "$SCRIPT_DIR/scripts/backup.sh" ]; then
 fi
 
 # 14. Output Final Summary
-sleep 3
-TG_PROXY_LINK=$(docker exec tgweb-proxy show-link 2>/dev/null | grep -o 'https://t.me/webproxy\S*' || echo "Check via bot")
+sleep 2
 
 echo ""
 echo -e "${GREEN}${BOLD}═════════════════════════════════════════════════════════════════════${NC}"
@@ -492,14 +457,12 @@ echo ""
 echo -e "📱 ${BOLD}Telegram-бот управления:${NC}"
 echo "   Откройте вашего бота в Telegram и отправьте /start"
 echo ""
-echo -e "🌐 ${BOLD}Telegram Web Proxy (tproxy-server):${NC}"
-echo "   Ссылка для подключения: $TG_PROXY_LINK"
-echo ""
-echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / SFM):${NC}"
+echo -e "📦 ${BOLD}Ключи для клиентов (Incy / Happ / V2Ray / Shadowrocket / NekoBox):${NC}"
 echo "   • Пользователь:       ${FIRST_USER_NAME}"
 echo "   • Универсал.подписка: https://${MAIN_DOMAIN}/${SUBS_PATH}/${FIRST_USER_TOKEN}.txt"
 echo "   • Основной REALITY:   ${VLESS_REALITY_LINK}"
 echo "   • Резервный XHTTP:    ${VLESS_XHTTP_LINK}"
+echo "   • Скоростной Hy2:     ${HY2_LINK}"
 echo ""
 echo -e "🔒 ${BOLD}Статус безопасности (Многоуровневая защита):${NC}"
 echo "   • SSL Сертификаты: Автоматическое продление через Certbot (Webroot, 0ms downtime)"
@@ -509,6 +472,5 @@ echo "   • SSH Защита: Вход по паролю ОТКЛЮЧЕН (то
 echo "   • Ядро Linux: SYN cookies, защита от IP-спуфинга, TCP BBR"
 echo "   • Фаервол: UFW активен (порты 22, 80, 443, 8443, 8444; все сервисы на 127.0.0.1)"
 echo "   • Автообновления: unattended-upgrades для патчей безопасности"
-echo "   • Ротация логов Docker: Ограничение до 30MB на контейнер"
 echo "   • Резервное копирование: Автоматический снапшот конфигураций ежедневно в 03:00"
 echo ""

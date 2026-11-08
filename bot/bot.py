@@ -102,7 +102,6 @@ def is_admin(user_id: Optional[int]) -> bool:
 admin_required = auth_admin_required(ADMIN_IDS)
 
 DOMAIN = os.getenv("MAIN_DOMAIN", "localhost").strip()
-TG_DOMAIN = os.getenv("TG_DOMAIN", f"tg.{DOMAIN}").strip()
 SUBS_PATH = os.getenv("SUBS_PATH", "sub").strip()
 VLESS_PATH = os.getenv("VLESS_PATH", "vless").strip()
 TROJAN_PATH = os.getenv("TROJAN_PATH", "trojan").strip()
@@ -161,40 +160,9 @@ def reload_singbox():
 def get_keyboard():
     keyboard = [
         ["➕ Создать ключ", "👥 Список ключей"],
-        ["📊 Трафик пользователей", "🌐 Telegram Web Proxy"],
-        ["📊 Статус сервера"]
+        ["📊 Трафик пользователей", "📊 Статус сервера"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-
-
-def get_web_proxy_info() -> dict:
-    try:
-        cmd = []
-        if os.geteuid() != 0:
-            cmd.append("sudo")
-        cmd.extend([SINGBOX_CONTROL, "tgproxy-link"])
-
-        res = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        output = res.stdout
-        link_match = re.search(r"Proxy link:\s+(https://\S+)", output)
-        tg_link_match = re.search(r"Proxy link \(tg://\):\s+(\S+)", output)
-        server_match = re.search(r"Proxy server [^:]*:\s+(\S+)", output)
-        secret_match = re.search(r"Proxy secret [^:]*:\s+(\S+)", output)
-
-        return {
-            "link": link_match.group(1) if link_match else "",
-            "tg_link": tg_link_match.group(1) if tg_link_match else "",
-            "server": server_match.group(1) if server_match else "",
-            "secret": secret_match.group(1) if secret_match else ""
-        }
-    except Exception as e:
-        logger.error(f"Error getting web proxy info: {e}")
-        return {}
 
 
 def create_user_singbox(username: str) -> Optional[dict]:
@@ -357,13 +325,14 @@ def generate_qr(data: str) -> io.BytesIO:
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
         f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
-        "Панель управления **Dual-Transport Stealth VPN (Xray REALITY / Sing-Box)** и **Telegram Web Proxy**.\n\n"
+        "Панель управления **Multi-Transport Stealth VPN**:\n"
+        "• ⚡ **Xray-Core**: VLESS + REALITY Vision & XHTTP\n"
+        "• 🚀 **Sing-Box**: Hysteria 2 Salamander UDP + VLESS/Trojan WS\n\n"
         "⚡ **Доступные команды:**\n"
         "• `/new <имя>` — сгенерировать ключ и универсальную подписку\n"
         "• `/list` — список всех пользователей с трафиком\n"
         "• `/stats` — сводная статистика трафика по пользователям\n"
         "• `/del <имя>` — удалить пользователя\n"
-        "• `/proxy` — ссылки на Telegram Web Proxy\n"
         "• `/status` — статус сервера и служб\n\n"
         "Или используйте кнопки внизу 👇"
     )
@@ -576,41 +545,10 @@ async def del_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 @admin_required
-async def proxy_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    info = get_web_proxy_info()
-    link = info.get("link", "")
-    server = info.get("server", "")
-    secret = info.get("secret", "")
-
-    msg = (
-        "🌐 **Telegram Web Proxy (tproxy-server)**\n\n"
-        "Официальный веб-прокси Telegram нового поколения (маскировка под HTTPS-сайт через WebSocket).\n\n"
-        f"🖥 **Сервер:** `{server}`\n"
-        f"🔐 **Секрет:** `{secret}`\n\n"
-        f"🔗 **Ссылка для подключения:**\n{link}\n"
-    )
-
-    keyboard = []
-    if link:
-        keyboard.append([InlineKeyboardButton("🚀 Подключить в Telegram", url=link)])
-
-    reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
-
-
-@admin_required
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     def get_svc_status(svc: str) -> str:
         r = subprocess.run(["systemctl", "is-active", svc], capture_output=True, text=True)
         return "🟢 Active" if r.stdout.strip() == "active" else "🔴 Inactive"
-
-    def get_docker_status(container: str) -> str:
-        try:
-            r = subprocess.run(["docker", "inspect", "-f", "{{.State.Status}}", container], capture_output=True, text=True)
-            status = r.stdout.strip()
-            return "🟢 Running" if status == "running" else f"🔴 {status}"
-        except Exception:
-            return "⚪ Unchecked"
 
     mem_r = subprocess.run(["free", "-m"], capture_output=True, text=True)
     df_r = subprocess.run(["df", "-h", "/"], capture_output=True, text=True)
@@ -618,7 +556,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     sb_st = get_svc_status("sing-box")
     xr_st = get_svc_status("xray")
     ng_st = get_svc_status("nginx")
-    wp_st = get_docker_status("tgweb-proxy")
 
     traffic_line = ""
     try:
@@ -632,10 +569,9 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     msg = (
         "📊 **Статус сервера:**\n\n"
-        f"📦 **Sing-Box:** {sb_st}\n"
+        f"📦 **Sing-Box (Hy2 / WS):** {sb_st}\n"
         f"⚡ **Xray-Core (REALITY/XHTTP):** {xr_st}\n"
-        f"🌐 **Nginx:** {ng_st}\n"
-        f"✈️ **Telegram Web Proxy:** {wp_st}\n\n"
+        f"🌐 **Nginx:** {ng_st}\n\n"
         f"{traffic_line}"
         f"💾 **Диск:**\n```{df_r.stdout.strip()}```\n\n"
         f"🧠 **Память:**\n```{mem_r.stdout.strip()}```"
@@ -773,8 +709,6 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await list_users_command(update, context)
     elif text in ("📊 Трафик пользователей", "📊 Трафик", "📊 Статистика", "/stats"):
         await stats_command(update, context)
-    elif text == "🌐 Telegram Web Proxy":
-        await proxy_command(update, context)
     elif text == "📊 Статус сервера":
         await status_command(update, context)
     else:
@@ -873,8 +807,6 @@ def main():
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("traffic", stats_command))
     app.add_handler(CommandHandler("del", del_user_command))
-    app.add_handler(CommandHandler("proxy", proxy_command))
-    app.add_handler(CommandHandler("webproxy", proxy_command))
     app.add_handler(CommandHandler("status", status_command))
 
     app.add_handler(CallbackQueryHandler(callback_handler))

@@ -40,10 +40,10 @@ class TestSudoersConfiguration(unittest.TestCase):
             # Must strictly name /usr/local/bin/singbox-control, never general shells or ALL
 
     def test_sudoers_has_all_control_actions(self):
-        """Sudoers must allow check, reload, rollback, status, and tgproxy-link."""
+        """Sudoers must allow check, reload, rollback, and status."""
         with open(self.sudoers_file, "r", encoding="utf-8") as f:
             content = f.read()
-        for action in ("check", "reload", "rollback", "status", "tgproxy-link"):
+        for action in ("check", "reload", "rollback", "status"):
             self.assertIn(f"/usr/local/bin/singbox-control {action}", content)
         self.assertNotIn("ALL=(ALL) ALL", content)
         self.assertNotIn("NOPASSWD: ALL", content)

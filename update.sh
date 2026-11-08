@@ -52,7 +52,6 @@ info "Считывание текущей конфигурации из $ENV_FIL
 source "$ENV_FILE"
 
 MAIN_DOMAIN="${MAIN_DOMAIN:-}"
-TG_DOMAIN="${TG_DOMAIN:-tg.$MAIN_DOMAIN}"
 SUBS_PATH="${SUBS_PATH:-}"
 VLESS_PATH="${VLESS_PATH:-}"
 TROJAN_PATH="${TROJAN_PATH:-}"
@@ -381,7 +380,6 @@ ok "Сервис incy-bot успешно перезапущен с изоляц�
 info "Проверка и обновление настроек Nginx..."
 if [ -f "$SCRIPT_DIR/config/nginx/nginx.conf.template" ]; then
     sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
-        -e "s|{{TG_DOMAIN}}|$TG_DOMAIN|g" \
         -e "s|{{SUBS_PATH}}|$SUBS_PATH|g" \
         -e "s|{{RULESET_PATH}}|$RULESET_PATH|g" \
         -e "s|{{TROJAN_PATH}}|$TROJAN_PATH|g" \
@@ -398,30 +396,14 @@ if [ -f "$SCRIPT_DIR/config/nginx/nginx.conf.template" ]; then
     fi
 fi
 
-# 12. Update Docker Container for Telegram Web Proxy (Pinned Image)
+# 12. Decommission Legacy Telegram Web Proxy Container if present
 if command -v docker >/dev/null 2>&1; then
-    info "Обновление Telegram Web Proxy до зафиксированного digest..."
-    PINNED_IMAGE="grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45"
     if docker ps -a --format '{{.Names}}' | grep -q "^tgweb-proxy$"; then
-        docker pull "$PINNED_IMAGE" >/dev/null 2>&1 || true
+        info "Остановка и удаление устаревшего контейнера tgweb-proxy (выделен в stealth-proxy-cascade)..."
         docker stop tgweb-proxy >/dev/null 2>&1 || true
         docker rm tgweb-proxy >/dev/null 2>&1 || true
-
-        docker run -d --name tgweb-proxy --restart unless-stopped \
-            -p 127.0.0.1:8080:8080 \
-            -e "TPROXY_HOSTNAME=$TG_DOMAIN" \
-            -e "TLS_MODE=off" \
-            -e "TRUSTED_PROXIES=private_ranges" \
-            -v tgweb-data:/data \
-            --cap-drop ALL --cap-add CHOWN --cap-add SETUID --cap-add SETGID --cap-add KILL \
-            --security-opt no-new-privileges \
-            "$PINNED_IMAGE" >/dev/null
-
-        sleep 2
-        if [ -f "$SCRIPT_DIR/site/tg/index.html" ]; then
-            docker cp "$SCRIPT_DIR/site/tg/index.html" tgweb-proxy:/run/tgweb/site/index.html 2>/dev/null || true
-        fi
-        ok "Telegram Web Proxy обновлён и запущен."
+        docker volume rm tgweb-data >/dev/null 2>&1 || true
+        ok "Устаревший tgweb-proxy удалён, ресурсы памяти и порт 8080 освобождены."
     fi
 fi
 
@@ -453,9 +435,6 @@ echo "  • Telegram Bot (incy-bot): $(systemctl is-active incy-bot.service)"
 echo "  • Sing-Box Core:           $(systemctl is-active sing-box.service)"
 echo "  • Xray Core (REALITY):     $(systemctl is-active xray.service 2>/dev/null || echo 'inactive')"
 echo "  • Nginx Web Server:        $(systemctl is-active nginx.service)"
-if command -v docker >/dev/null 2>&1; then
-echo "  • Telegram Web Proxy:      $(docker inspect -f '{{.State.Status}}' tgweb-proxy 2>/dev/null || echo 'inactive')"
-fi
 echo ""
 echo "Логи автоматической миграции пользователей:"
 journalctl -u incy-bot -n 15 --no-pager | grep -iE '(migrat|token|start)' || true

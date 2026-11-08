@@ -109,22 +109,6 @@ class TestPromptVarSecurity(unittest.TestCase):
         self.assertIn("Invalid variable name", res.stderr)
 
 
-class TestDockerImagePinning(unittest.TestCase):
-    """Tests ensuring Docker images are pinned by exact digest."""
-
-    PINNED_DIGEST = "grayhoax/telegram-web-proxy:sha-959b1b5@sha256:5bb3a55cdee2959482f69e24e4c202d52b378968d85e18cd645c2095739ecb45"
-
-    def test_install_sh_pins_docker_image(self):
-        install_sh = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
-        self.assertNotIn("grayhoax/telegram-web-proxy:latest", install_sh)
-        self.assertIn(self.PINNED_DIGEST, install_sh)
-
-    def test_docker_compose_pins_docker_image(self):
-        compose = (REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8")
-        self.assertNotIn("grayhoax/telegram-web-proxy:latest", compose)
-        self.assertIn(self.PINNED_DIGEST, compose)
-
-
 class TestNginxHardening(unittest.TestCase):
     """Tests verifying Nginx diagnostics, timeouts and privacy logging."""
 

@@ -5,7 +5,6 @@ incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control check /tmp/singbox_*
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control reload
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control rollback
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control status
-incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control tgproxy-link
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-check /etc/xray/*
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-check /tmp/xray_*
 incy-bot ALL=(ALL) NOPASSWD: /usr/local/bin/singbox-control xray-reload

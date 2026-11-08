@@ -98,10 +98,6 @@ except Exception:
         fi
         ;;
 
-    tgproxy-link)
-        exec /usr/bin/docker exec tgweb-proxy show-link
-        ;;
-
     xray-check)
         TARGET="${2:-}"
         if [ -z "$TARGET" ]; then
@@ -191,7 +187,7 @@ except Exception:
         ;;
 
     *)
-        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, tgproxy-link, xray-check, xray-reload, xray-status, xray-rollback, xray-stats" >&2
+        echo "ERROR: Invalid action '${ACTION}'. Allowed actions: check, reload, status, rollback, xray-check, xray-reload, xray-status, xray-rollback, xray-stats" >&2
         exit 1
         ;;
 esac
