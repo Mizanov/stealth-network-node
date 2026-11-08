@@ -603,6 +603,37 @@ def sync_subscriptions_from_config(
                     except Exception as e:
                         logger.warning("Could not refresh MASQUE client json for %s: %s", user, e)
 
+                # Refresh {token}.txt subscription file with latest profiles
+                try:
+                    txt_path = os.path.join(www_dir, f"{token}.txt")
+                    vless_link = f"vless://{uuid}@{domain}:443?security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
+                    trojan_link = f"trojan://{pw}@{domain}:443?security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
+                    masque_link = f"masque://{user}:{pw}@{domain}:{masque_port}?sni={domain}#🌐 [IETF] MASQUE-TLS"
+
+                    if reality_public_key:
+                        vless_reality_link = (
+                            f"vless://{uuid}@{domain}:{reality_port}?"
+                            f"security=reality&encryption=none&pbk={reality_public_key}&"
+                            f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
+                            f"sni={reality_sni or domain}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
+                        )
+                        vless_xhttp_link = (
+                            f"vless://{uuid}@{domain}:{xhttp_port}?"
+                            f"security=reality&encryption=none&pbk={reality_public_key}&"
+                            f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
+                            f"sni={reality_sni or domain}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
+                        )
+                        sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{masque_link}\n{vless_link}\n{trojan_link}\n"
+                    else:
+                        sub_body = f"{vless_link}\n{trojan_link}\n{masque_link}\n"
+
+                    sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
+                    with open(txt_path, "w", encoding="utf-8") as f:
+                        f.write(sub_b64)
+                    os.chmod(txt_path, 0o644)
+                except Exception as e:
+                    logger.warning("Could not refresh subscription txt for %s: %s", user, e)
+
     return migrated_count
 
 
