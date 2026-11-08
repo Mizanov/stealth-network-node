@@ -141,7 +141,8 @@ def create_or_update_subscription(
     trojan_template: str = "/opt/incy-bot/template-trj.json",
     hy2_template: str = "/opt/incy-bot/template-hy2.json",
     registry_path: str = DEFAULT_REGISTRY_PATH,
-    lock_path: str = DEFAULT_LOCK_PATH
+    lock_path: str = DEFAULT_LOCK_PATH,
+    extra_meta: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     Creates or updates subscription files using a secure token.
@@ -285,11 +286,16 @@ def create_or_update_subscription(
             except Exception as e:
                 logger.error("Failed to generate fallback Hysteria2 client json: %s", e)
 
-        # Save to registry
+        # Save to registry with metadata preservation
+        meta = old_entry.get("meta", {}) if old_entry and isinstance(old_entry, dict) else {}
+        if extra_meta and isinstance(extra_meta, dict):
+            meta.update(extra_meta)
+
         registry[username] = {
             "token": token,
             "vless_uuid": vless_uuid,
             "trojan_pass": trojan_pass,
+            "meta": meta,
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         _save_registry_and_unlock(registry, registry_path, lock_fd)
@@ -675,6 +681,45 @@ def revoke_subscription(
             pass
         os.close(lock_fd)
         raise
+
+
+def get_user_by_tg_id(
+    tg_id: int,
+    registry_path: str = DEFAULT_REGISTRY_PATH,
+    lock_path: str = DEFAULT_LOCK_PATH
+) -> Optional[Tuple[str, Dict[str, Any]]]:
+    """Finds user by Telegram numeric ID."""
+    registry, lock_fd = _lock_and_load_registry(registry_path, lock_path)
+    try:
+        for uname, udata in registry.items():
+            if not isinstance(udata, dict):
+                continue
+            meta = udata.get("meta", {})
+            if isinstance(meta, dict) and meta.get("tg_id") == tg_id:
+                return uname, udata
+        return None
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(lock_fd)
+
+
+def get_all_users_meta(
+    registry_path: str = DEFAULT_REGISTRY_PATH,
+    lock_path: str = DEFAULT_LOCK_PATH
+) -> Dict[str, Dict[str, Any]]:
+    """Returns mapping of username -> user registry entry."""
+    registry, lock_fd = _lock_and_load_registry(registry_path, lock_path)
+    try:
+        return dict(registry)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(lock_fd)
 
 
 def _cleanup_token_files(token: str, www_dir: str):

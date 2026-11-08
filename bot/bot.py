@@ -7,7 +7,8 @@ import io
 import base64
 import subprocess
 import logging
-from typing import Optional, Set
+from datetime import datetime, timezone
+from typing import Optional, Set, Dict, Any, Tuple
 
 import qrcode
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
@@ -46,6 +47,8 @@ from subscription_manager import (
     rotate_subscription_token,
     revoke_subscription,
     sync_subscriptions_from_config,
+    get_user_by_tg_id,
+    get_all_users_meta,
     SubscriptionError
 )
 from xray_manager import (
@@ -157,15 +160,35 @@ def reload_singbox():
     run_privileged_control("reload")
 
 
-def get_keyboard():
+def get_admin_keyboard():
     keyboard = [
-        ["➕ Создать ключ", "👥 Список ключей"],
+        ["➕ Создать ключ", "👥 Список участников"],
         ["📊 Трафик пользователей", "📊 Статус сервера"]
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
-def create_user_singbox(username: str) -> Optional[dict]:
+def get_user_unregistered_keyboard():
+    keyboard = [
+        ["🚀 Запросить доступ", "📖 Инструкция"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_user_registered_keyboard():
+    keyboard = [
+        ["📱 Мой профиль", "📊 Мой трафик"],
+        ["📖 Инструкция"]
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+
+def get_keyboard():
+    """Compatibility alias for admin keyboard."""
+    return get_admin_keyboard()
+
+
+def create_user_singbox(username: str, extra_meta: Optional[Dict[str, Any]] = None) -> Optional[dict]:
     try:
         valid_username = validate_username(username)
     except InvalidUsernameError as e:
@@ -231,7 +254,8 @@ def create_user_singbox(username: str) -> Optional[dict]:
             xhttp_path=XHTTP_PATH,
             vless_template=VLESS_TEMPLATE,
             trojan_template=TROJAN_TEMPLATE,
-            hy2_template=HY2_TEMPLATE
+            hy2_template=HY2_TEMPLATE,
+            extra_meta=extra_meta
         )
 
         return {
@@ -321,144 +345,309 @@ def generate_qr(data: str) -> io.BytesIO:
     return bio
 
 
-@admin_required
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+    if is_admin(user.id):
+        await send_admin_panel(update, context)
+    else:
+        await send_user_cabinet(update, context)
+
+
+async def send_admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     msg = (
-        f"👋 Здравствуйте, {update.effective_user.first_name}!\n\n"
+        f"👋 Здравствуйте, {user.first_name}!\n\n"
         "Панель управления **Multi-Transport Stealth Network Node**:\n"
         "• ⚡ **Xray-Core**: VLESS + REALITY Vision & XHTTP\n"
         "• 🚀 **Sing-Box**: Hysteria 2 Salamander UDP + VLESS/Trojan WS\n\n"
-        "⚡ **Доступные команды:**\n"
+        "⚡ **Доступные команды администратора:**\n"
         "• `/new <имя>` — сгенерировать ключ и универсальную подписку\n"
-        "• `/list` — список всех пользователей с трафиком\n"
-        "• `/stats` — сводная статистика трафика по пользователям\n"
-        "• `/del <имя>` — удалить пользователя\n"
+        "• `/list` — список всех участников с привязкой к Telegram и трафиком\n"
+        "• `/stats` — сводная статистика сетевого трафика\n"
+        "• `/del <имя>` — удалить пользователя и аннулировать токен\n"
         "• `/status` — статус сервера и служб\n\n"
         "Или используйте кнопки внизу 👇"
     )
-    await update.message.reply_text(msg, reply_markup=get_keyboard(), parse_mode="Markdown")
+    target = update.callback_query.message if update.callback_query else update.message
+    await target.reply_text(msg, reply_markup=get_admin_keyboard(), parse_mode="Markdown")
 
 
-@admin_required
-async def new_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.args:
-        username = context.args[0].strip()
+async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    existing = get_user_by_tg_id(user.id)
+
+    target = update.callback_query.message if update.callback_query else update.message
+    if existing:
+        username, _ = existing
+        msg = (
+            f"👋 Здравствуйте, {user.first_name}!\n\n"
+            f"Добро пожаловать в **Личный кабинет участника защищённого узла**.\n\n"
+            f"👤 **Ваш профиль:** `{username}`\n"
+            f"🟢 **Статус доступа:** Активен\n\n"
+            f"Здесь вы можете просмотреть параметры подключения, получить QR-код для настройки устройств или проверить статистику трафика."
+        )
+        keyboard = [
+            [InlineKeyboardButton("📱 Мой профиль и QR-код", callback_data="user_profile")],
+            [
+                InlineKeyboardButton("📊 Мой трафик", callback_data="user_traffic"),
+                InlineKeyboardButton("📖 Инструкция", callback_data="user_guide")
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await target.reply_text(msg, reply_markup=get_user_registered_keyboard(), parse_mode="Markdown")
+        await target.reply_text("Выберите необходимое действие в меню:", reply_markup=reply_markup)
     else:
-        username = f"user_{uuid.uuid4().hex[:6]}"
+        msg = (
+            f"👋 Здравствуйте, {user.first_name}!\n\n"
+            f"Добро пожаловать в **Персональный портал доступа к защищённому узлу связи**.\n\n"
+            f"Этот узел обеспечивает безопасный шифрованный транспорт данных через современные протоколы (VLESS REALITY Vision, XHTTP, Hysteria 2 Salamander).\n\n"
+            f"📌 **Правила узла:**\n"
+            f"• Доступ предоставляется участникам персонально (1 профиль на Telegram-аккаунт).\n"
+            f"• Все протоколы объединены в единую универсальную подписку (5 в 1).\n"
+            f"• Поддерживаются устройства на iOS, Android, Windows, macOS и Linux.\n\n"
+            f"Нажмите кнопку ниже, чтобы активировать персональный доступ:"
+        )
+        keyboard = [
+            [InlineKeyboardButton("🚀 Получить доступ к узлу", callback_data="req_access")],
+            [InlineKeyboardButton("📖 Инструкция по подключению", callback_data="user_guide")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await target.reply_text(msg, reply_markup=get_user_unregistered_keyboard(), parse_mode="Markdown")
+        await target.reply_text("Нажмите для выпуска ключа:", reply_markup=reply_markup)
 
-    await process_new_user(update, username)
 
-
-async def process_new_user(update: Update, username: str):
-    res = create_user_singbox(username)
-    if not res:
-        await update.message.reply_text("❌ Ошибка: имя пользователя может содержать только латинские буквы, цифры и знаки `-`, `_`.")
+async def request_access_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
         return
 
-    if "error" in res:
-        await update.message.reply_text(f"⚠️ {res['error']}")
+    # Check if already registered (Single-issue self-service lock)
+    existing = get_user_by_tg_id(user.id)
+    if existing:
+        username, _ = existing
+        msg = f"⚠️ У вас уже активирован персональный доступ: `{username}`.\nПовторный выпуск ключа заблокирован."
+        if update.callback_query:
+            await update.callback_query.answer("Доступ уже предоставлен!", show_alert=True)
+            await update.callback_query.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_user_registered_keyboard())
+        else:
+            await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=get_user_registered_keyboard())
         return
 
-    vless_link = res["vless_link"]
-    reality_link = res.get("vless_reality_link", "")
-    xhttp_link = res.get("vless_xhttp_link", "")
-    hy2_link = res.get("hy2_link", "")
-    incy_sub_url = res["incy_sub_url"]
-    singbox_json_url = res["singbox_json_url"]
-    hy2_json_url = res.get("hy2_json_url", "")
-    incy_deeplink = res["incy_deeplink"]
+    # Derive unique sanitized username
+    base_name = ""
+    if user.username:
+        clean_user = re.sub(r"[^a-zA-Z0-9_-]", "", user.username.lower())
+        if len(clean_user) >= 3:
+            base_name = f"tg_{clean_user[:20]}"
+    if not base_name:
+        base_name = f"user_{user.id}"
 
-    if reality_link:
-        caption = (
-            f"✅ **Ключ успешно создан!**\n\n"
-            f"👤 **Пользователь:** `{username}`\n"
-            f"🔑 **UUID:** `{res['uuid']}`\n\n"
-            f"📋 **Универсальная подписка (5 в 1):**\n"
-            f"`{incy_sub_url}`\n\n"
-            f"📦 **Конфиг Sing-Box JSON:**\n"
-            f"`{singbox_json_url}`\n\n"
-            f"💡 *Отсканируйте QR-код для подключения VLESS-REALITY-Vision или скопируйте ссылку подписки.*"
-        )
-    else:
-        caption = (
-            f"✅ **Ключ успешно создан!**\n\n"
-            f"👤 **Пользователь:** `{username}`\n"
-            f"🔑 **UUID:** `{res['uuid']}`\n\n"
-            f"📋 **Ссылка на подписку:**\n"
-            f"`{incy_sub_url}`\n\n"
-            f"📦 **Конфиг Sing-Box JSON:**\n"
-            f"`{singbox_json_url}`\n\n"
-            f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
-        )
+    existing_users = set(get_users_list())
+    candidate_name = base_name
+    counter = 1
+    while candidate_name in existing_users:
+        candidate_name = f"{base_name}_{counter}"
+        counter += 1
 
-    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=singbox_json_url)]
-    if hy2_json_url:
-        json_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json_url))
+    extra_meta = {
+        "tg_id": user.id,
+        "tg_username": user.username or "",
+        "tg_first_name": user.first_name or "",
+        "tg_last_name": user.last_name or "",
+        "issued_at": datetime.now(timezone.utc).isoformat()
+    }
+
+    res = create_user_singbox(candidate_name, extra_meta=extra_meta)
+    if not res or "error" in res:
+        err_msg = res.get("error", "Неизвестная ошибка") if res else "Ошибка создания учетной записи"
+        logger.error("Failed to self-register user %s (%s): %s", user.id, candidate_name, err_msg)
+        fail_text = f"❌ Не удалось выпустить ключ: {err_msg}. Обратитесь к администратору."
+        if update.callback_query:
+            await update.callback_query.message.reply_text(fail_text)
+        else:
+            await update.message.reply_text(fail_text)
+        return
+
+    if update.callback_query:
+        await update.callback_query.answer("Доступ успешно активирован!")
+
+    target_msg = update.callback_query.message if update.callback_query else update.message
+    await deliver_user_credentials(target_msg, candidate_name, res, is_self_service=True)
+
+    # Notify admins about new user registration
+    for admin_id in ADMIN_IDS:
+        try:
+            admin_notify = (
+                "🔔 **Новый участник получил доступ:**\n\n"
+                f"• Профиль: `{candidate_name}`\n"
+                f"• Имя: {user.full_name}\n"
+                f"• Telegram: @{user.username or '—'} (`{user.id}`)"
+            )
+            await context.bot.send_message(chat_id=admin_id, text=admin_notify, parse_mode="Markdown")
+        except Exception as e:
+            logger.debug("Failed to send admin notification to %s: %s", admin_id, e)
+
+
+async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+
+    existing = get_user_by_tg_id(user.id)
+    if not existing:
+        await send_user_cabinet(update, context)
+        return
+
+    username, udata = existing
+    sub_info = get_subscription_info(username, DOMAIN, SUBS_PATH)
+    target = update.callback_query.message if update.callback_query else update.message
+
+    if not sub_info:
+        msg = f"⚠️ Профиль `{username}` найден, но файлы конфигурации подписки отсутствуют. Обратитесь к администратору."
+        await target.reply_text(msg, parse_mode="Markdown")
+        return
+
+    sub_url = sub_info["sub_url"]
+    sb_json = sub_info["singbox_json_url"]
+    hy2_json = sub_info.get("hy2_json_url", "")
+
+    vless_uuid = udata.get("vless_uuid", "")
+    trojan_pass = udata.get("trojan_pass", "")
+    reality_link = f"vless://{vless_uuid}@{DOMAIN}:{REALITY_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-Vision-{username}"
+    hy2_link = f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
+
+    caption = (
+        f"📱 **Ваш персональный профиль подключения**\n\n"
+        f"👤 **Пользователь:** `{username}`\n"
+        f"🟢 **Статус:** Активен\n\n"
+        f"📋 **Универсальная ссылка подписки (5 в 1):**\n"
+        f"`{sub_url}`\n\n"
+        f"💡 *Отсканируйте QR-код для моментального подключения или скопируйте ссылку подписки.*"
+    )
+
+    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)]
+    if hy2_json:
+        json_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json))
 
     keyboard = [
-        [InlineKeyboardButton("🌐 Открыть подписку", url=incy_sub_url)],
+        [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
         json_buttons,
-        [InlineKeyboardButton("🗑 Удалить этот ключ", callback_data=f"del_{username}")]
+        [InlineKeyboardButton("📖 Инструкция", callback_data="user_guide")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # QR encodes primary connection URI for 1-tap instant camera import
-    primary_qr_link = reality_link if reality_link else vless_link
-    qr_img = generate_qr(primary_qr_link)
+    qr_img = generate_qr(reality_link)
+    if update.callback_query:
+        await update.callback_query.answer()
 
     try:
-        await update.message.reply_photo(
+        await target.reply_photo(
             photo=qr_img,
             caption=caption[:1024],
             parse_mode="Markdown",
             reply_markup=reply_markup
         )
-    except Exception as photo_err:
-        logger.warning(f"Failed to send QR photo: {photo_err}, falling back to text message")
-        await update.message.reply_text(
+    except Exception as err:
+        logger.warning(f"Failed to send QR photo: {err}")
+        await target.reply_text(
             caption,
             parse_mode="Markdown",
             reply_markup=reply_markup,
             disable_web_page_preview=True
         )
 
-    # Follow up with direct connection strings
-    if reality_link:
-        direct_msg = (
-            f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
-            f"1️⃣ **[Основной] VLESS + REALITY + Vision (TCP):**\n"
-            f"`{reality_link}`\n\n"
-            f"2️⃣ **[Резерв] VLESS + XHTTP + REALITY:**\n"
-            f"`{xhttp_link}`\n\n"
-            f"3️⃣ **[QUIC] Hysteria 2 (UDP 443 + Salamander obfs):**\n"
-            f"`{hy2_link}`\n\n"
-            f"4️⃣ **[WS Legacy] VLESS + WS + TLS:**\n"
-            f"`{vless_link}`"
-        )
-    else:
-        direct_msg = (
-            f"⚡ **Прямая ссылка VLESS (`{username}`):**\n\n"
-            f"`{vless_link}`"
-        )
-
-    await update.message.reply_text(
+    direct_msg = (
+        f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
+        f"1️⃣ **VLESS + REALITY + Vision:**\n`{reality_link}`\n\n"
+        f"2️⃣ **Hysteria 2 Salamander:**\n`{hy2_link}`"
+    )
+    await target.reply_text(
         direct_msg,
         parse_mode="Markdown",
+        reply_markup=get_user_registered_keyboard(),
         disable_web_page_preview=True
     )
+
+
+async def show_user_traffic(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+
+    existing = get_user_by_tg_id(user.id)
+    if not existing:
+        await send_user_cabinet(update, context)
+        return
+
+    username, _ = existing
+    u_stats = get_user_traffic(username, sync=True)
+
+    msg = (
+        f"📊 **Потребление сетевого трафика**\n\n"
+        f"👤 **Профиль:** `{username}`\n"
+        f"🟢 **Статус соединения:** Активно\n\n"
+        f"• ⬇️ **Скачано (Download):** `{u_stats['formatted_downlink']}`\n"
+        f"• ⬆️ **Загружено (Upload):** `{u_stats['formatted_uplink']}`\n"
+        f"• 🔄 **Суммарный объём:** `{u_stats['formatted_total']}`\n\n"
+        f"💡 *Статистика обновляется в реальном времени при передаче данных через протоколы узла.*"
+    )
+    keyboard = [
+        [InlineKeyboardButton("🔄 Обновить", callback_data="user_traffic")],
+        [InlineKeyboardButton("📱 Мой профиль", callback_data="user_profile")]
+    ]
+    target = update.callback_query.message if update.callback_query else update.message
+    if update.callback_query:
+        await update.callback_query.answer("Данные обновлены")
+        try:
+            await update.callback_query.edit_message_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception:
+            await target.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await target.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def show_user_guide(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = (
+        "📖 **Инструкция по подключению к узлу**\n\n"
+        "Для подключения используйте универсальную ссылку подписки или отсканируйте QR-код в приложении:\n\n"
+        "🍏 **Apple (iOS / iPadOS / macOS):**\n"
+        "1. Установите приложение: **FoXray**, **Streisand** или **Sing-box** из App Store.\n"
+        "2. Скопируйте ссылку подписки из раздела «📱 Мой профиль» или отсканируйте QR-код.\n"
+        "3. В приложении нажмите «+» ➔ «Импорт из буфера обмена» (или «Сканировать QR»).\n"
+        "4. Нажмите кнопку подключения.\n\n"
+        "🤖 **Android:**\n"
+        "1. Установите приложение: **v2rayNG** или **NekoBox** (из Google Play или GitHub).\n"
+        "2. Нажмите «+» в правом верхнем углу ➔ «Импорт из буфера обмена» или отсканируйте QR-код.\n"
+        "3. Выберите появившийся профиль и нажмите кнопку включения.\n\n"
+        "💻 **Windows:**\n"
+        "1. Скачайте приложение **v2rayN** или **Hiddify**.\n"
+        "2. Нажмите «Серверы» ➔ «Импортировать ссылку из буфера» (Ctrl+V).\n"
+        "3. Активируйте режим системного прокси.\n\n"
+        "💡 *При любых вопросах обращайтесь к администратору вашего узла.*"
+    )
+    target = update.callback_query.message if update.callback_query else update.message
+    if update.callback_query:
+        await update.callback_query.answer()
+        await target.reply_text(msg, parse_mode="Markdown")
+    else:
+        await target.reply_text(msg, parse_mode="Markdown")
 
 
 @admin_required
 async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = get_users_list()
     if not users:
-        await update.message.reply_text("Список пользователей пуст.", reply_markup=get_keyboard())
+        await update.message.reply_text("Список пользователей пуст.", reply_markup=get_admin_keyboard())
         return
 
     try:
         sync_traffic_stats()
     except Exception as e:
         logger.warning("Failed to sync traffic stats in list_users_command: %s", e)
+
+    meta_registry = get_all_users_meta()
 
     msg = f"👥 **Список учетных записей ({len(users)}):**\n\n"
     keyboard = []
@@ -467,7 +656,22 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         tot_str = u_stats["formatted_total"]
         dl_str = u_stats["formatted_downlink"]
         ul_str = u_stats["formatted_uplink"]
-        msg += f"• `{u}` — **{tot_str}** (↓ {dl_str} / ↑ {ul_str})\n"
+
+        user_entry = meta_registry.get(u, {})
+        meta = user_entry.get("meta", {}) if isinstance(user_entry, dict) else {}
+        tg_info = ""
+        if meta and isinstance(meta, dict):
+            parts = []
+            if meta.get("tg_username"):
+                parts.append(f"@{meta['tg_username']}")
+            if meta.get("tg_first_name"):
+                parts.append(meta["tg_first_name"])
+            if meta.get("tg_id"):
+                parts.append(f"ID:{meta['tg_id']}")
+            if parts:
+                tg_info = f" ({', '.join(parts)})"
+
+        msg += f"• `{u}`{tg_info} — **{tot_str}** (↓ {dl_str} / ↑ {ul_str})\n"
         keyboard.append([
             InlineKeyboardButton(f"🔗 {u}", callback_data=f"info_{u}"),
             InlineKeyboardButton("🗑 Удалить", callback_data=f"del_{u}")
@@ -579,12 +783,32 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="Markdown")
 
 
-@admin_required
 async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
     data = query.data
+    user = update.effective_user
+
+    # Public / Member Accessible Callbacks
+    if data == "req_access":
+        await request_access_handler(update, context)
+        return
+    elif data == "user_profile":
+        await show_user_profile(update, context)
+        return
+    elif data == "user_traffic":
+        await show_user_traffic(update, context)
+        return
+    elif data == "user_guide":
+        await show_user_guide(update, context)
+        return
+
+    # Admin-only Callbacks
+    if not is_admin(user.id if user else None):
+        await query.answer("⛔ Доступ запрещён. Требуются права администратора.", show_alert=True)
+        return
+
     if data.startswith("del_"):
         username = data[4:]
         if delete_user_singbox(username):
@@ -601,6 +825,25 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         username = data[5:]
         u_stats = get_user_traffic(username, sync=True)
         sub_info = get_subscription_info(username, DOMAIN, SUBS_PATH)
+        meta_registry = get_all_users_meta()
+        user_entry = meta_registry.get(username, {})
+        meta = user_entry.get("meta", {}) if isinstance(user_entry, dict) else {}
+
+        tg_details = ""
+        if meta and isinstance(meta, dict):
+            tg_id = meta.get("tg_id", "—")
+            tg_user = f"@{meta.get('tg_username')}" if meta.get("tg_username") else "—"
+            tg_name = meta.get("tg_first_name", "")
+            if meta.get("tg_last_name"):
+                tg_name += f" {meta.get('tg_last_name')}"
+            issued = meta.get("issued_at", meta.get("created_at", "—"))
+            tg_details = (
+                f"📱 **Telegram:** {tg_user}\n"
+                f"👤 **Имя:** {tg_name or '—'}\n"
+                f"🆔 **Telegram ID:** `{tg_id}`\n"
+                f"📅 **Выдан:** `{issued}`\n\n"
+            )
+
         if sub_info:
             sub_url = sub_info["sub_url"]
             sb_json = sub_info["singbox_json_url"]
@@ -608,6 +851,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
             msg = (
                 f"👤 **Пользователь:** `{username}`\n"
+                f"{tg_details}"
                 f"🔑 **Секретный токен:** `{token_preview}`\n\n"
                 f"📊 **Использование трафика:**\n"
                 f"  • ⬇️ **Скачано (Download):** `{u_stats['formatted_downlink']}`\n"
@@ -629,7 +873,8 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         else:
             msg = (
-                f"👤 **Пользователь:** `{username}`\n\n"
+                f"👤 **Пользователь:** `{username}`\n"
+                f"{tg_details}"
                 f"📊 **Использование трафика:**\n"
                 f"  • ⬇️ **Скачано (Download):** `{u_stats['formatted_downlink']}`\n"
                 f"  • ⬆️ **Загружено (Upload):** `{u_stats['formatted_uplink']}`\n"
@@ -699,26 +944,43 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"❌ Ошибка ротации токена: {e}")
 
 
-@admin_required
 async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if not user:
+        return
+
     text = update.message.text.strip()
-    if text in ("➕ Создать ключ", "➕ Создать ключ Incy"):
-        uname = f"user_{uuid.uuid4().hex[:6]}"
-        await process_new_user(update, uname)
-    elif text == "👥 Список ключей":
-        await list_users_command(update, context)
-    elif text in ("📊 Трафик пользователей", "📊 Трафик", "📊 Статистика", "/stats"):
-        await stats_command(update, context)
-    elif text == "📊 Статус сервера":
-        await status_command(update, context)
-    else:
-        if re.match(r"^[a-zA-Z0-9_-]+$", text) and not text.startswith("/"):
+
+    if is_admin(user.id):
+        if text in ("➕ Создать ключ", "➕ Создать ключ Incy"):
+            uname = f"user_{uuid.uuid4().hex[:6]}"
+            await process_new_user(update, uname)
+        elif text in ("👥 Список ключей", "👥 Список участников"):
+            await list_users_command(update, context)
+        elif text in ("📊 Трафик пользователей", "📊 Трафик", "📊 Статистика", "/stats"):
+            await stats_command(update, context)
+        elif text == "📊 Статус сервера":
+            await status_command(update, context)
+        elif re.match(r"^[a-zA-Z0-9_-]+$", text) and not text.startswith("/"):
             await process_new_user(update, text)
         else:
             await update.message.reply_text(
                 "ℹ️ Чтобы создать ключ, введите `/new <имя>` или нажмите кнопку «➕ Создать ключ».",
-                reply_markup=get_keyboard()
+                reply_markup=get_admin_keyboard()
             )
+    else:
+        if text in ("🚀 Запросить доступ", "🚀 Получить доступ"):
+            await request_access_handler(update, context)
+        elif text in ("📱 Мой профиль", "📱 Моя подписка"):
+            await show_user_profile(update, context)
+        elif text in ("📊 Мой трафик", "📊 Трафик"):
+            await show_user_traffic(update, context)
+        elif text in ("📖 Инструкция", "📖 Инструкция по подключению", "/help"):
+            await show_user_guide(update, context)
+        else:
+            existing = get_user_by_tg_id(user.id)
+            kb = get_user_registered_keyboard() if existing else get_user_unregistered_keyboard()
+            await update.message.reply_text("Пожалуйста, воспользуйтесь кнопками меню:", reply_markup=kb)
 
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -799,7 +1061,10 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start_handler))
-    app.add_handler(CommandHandler("help", start_handler))
+    app.add_handler(CommandHandler("help", show_user_guide))
+    app.add_handler(CommandHandler("cabinet", start_handler))
+    app.add_handler(CommandHandler("profile", show_user_profile))
+    app.add_handler(CommandHandler("get", request_access_handler))
     app.add_handler(CommandHandler("new", new_user_command))
     app.add_handler(CommandHandler("add", new_user_command))
     app.add_handler(CommandHandler("list", list_users_command))

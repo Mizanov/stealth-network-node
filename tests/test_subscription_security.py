@@ -28,6 +28,8 @@ from subscription_manager import (
     rotate_subscription_token,
     revoke_subscription,
     sync_subscriptions_from_config,
+    get_user_by_tg_id,
+    get_all_users_meta,
     SubscriptionError
 )
 
@@ -332,6 +334,48 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         self.assertIsNotNone(rotated)
         self.assertEqual(rotated["username"], "unmigrated_user")
         self.assertEqual(rotated["vless_uuid"], "uuid-unmigrated")
+
+    def test_metadata_persistence_and_lookup_by_tg_id(self):
+        """User metadata (tg_id, username, etc.) is persisted and queryable."""
+        meta = {
+            "tg_id": 123456789,
+            "tg_username": "test_user",
+            "tg_first_name": "Test",
+            "tg_last_name": "Family"
+        }
+        res = create_or_update_subscription(
+            username="member_1",
+            vless_uuid="uuid-m1",
+            trojan_pass="pass-m1",
+            domain="vpn.example.com",
+            subs_path="sub",
+            vless_path="v",
+            trojan_path="t",
+            www_dir=self.www_dir,
+            vless_template=self.vless_tmpl,
+            trojan_template=self.trj_tmpl,
+            registry_path=self.registry_path,
+            lock_path=self.lock_path,
+            extra_meta=meta
+        )
+        self.assertIsNotNone(res)
+
+        # Lookup by TG ID
+        found = get_user_by_tg_id(123456789, registry_path=self.registry_path, lock_path=self.lock_path)
+        self.assertIsNotNone(found)
+        uname, udata = found
+        self.assertEqual(uname, "member_1")
+        self.assertEqual(udata["meta"]["tg_id"], 123456789)
+        self.assertEqual(udata["meta"]["tg_username"], "test_user")
+
+        # Unknown TG ID returns None
+        not_found = get_user_by_tg_id(999999999, registry_path=self.registry_path, lock_path=self.lock_path)
+        self.assertIsNone(not_found)
+
+        # All users meta returns dictionary mapping
+        all_meta = get_all_users_meta(registry_path=self.registry_path, lock_path=self.lock_path)
+        self.assertIn("member_1", all_meta)
+        self.assertEqual(all_meta["member_1"]["meta"]["tg_id"], 123456789)
 
 
 class TestNginxSubscriptionHardening(unittest.TestCase):
