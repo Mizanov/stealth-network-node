@@ -346,11 +346,14 @@ def ensure_singbox_hy2_config(
     domain: str,
     hy2_port: int = 443,
     obfs_password: str = "sal_sec_84729472",
-    cert_dir: str = "/etc/letsencrypt/live"
+    cert_dir: str = "/etc/letsencrypt/live",
+    hy2_obfs_password: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Ensures sing-box configuration has a 'hy2-in' (Hysteria 2 with Salamander obfs) inbound.
     """
+    if hy2_obfs_password is not None:
+        obfs_password = hy2_obfs_password
     inbounds = cfg.setdefault("inbounds", [])
     has_hy2 = any(ib.get("tag") == "hy2-in" or ib.get("type") == "hysteria2" for ib in inbounds)
     if not has_hy2:
