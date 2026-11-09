@@ -4,7 +4,7 @@
 
 ### 🛡️ Xray REALITY Vision & XHTTP | Sing-Box Hysteria 2 Salamander & WS TLS | Dedicated Telegram Bot
 
-Готовое решение «под ключ» для развёртывания на чистом VPS: легковесный (<120 МБ RAM, без Docker), мультитранспортный защищённый сетевой узел на базе **Xray-Core** (высокоскоростной транспорт **VLESS + REALITY + Vision**, защищённый потоковый транспорт **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (скоростной протокол **Hysteria 2** с обфускацией **Salamander** на порту **443 UDP**, legacy VLESS / Trojan WS + TLS), сайт-маскировка портфолио инженера (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации профилей и универсальных подписок для **Incy, Happ, Sing-Box, Shadowrocket, v2rayN / v2rayNG, Streisand, Surge, Hiddify, Nekobox** и других современных клиентов.
+Готовое решение «под ключ» для развёртывания на чистом VPS: легковесный (<120 МБ RAM, без Docker), мультитранспортный защищённый сетевой узел на базе **Xray-Core** (высокоскоростной транспорт **VLESS + REALITY + Vision**, защищённый потоковый транспорт **VLESS + XHTTP + REALITY** с защитой **Self-SNI**), **Sing-Box** (скоростной протокол **Hysteria 2** с обфускацией **Salamander** на порту **443 UDP**, legacy VLESS / Trojan WS + TLS), сайт-маскировка студии дизайна (HTTP 200 OK) и персональный **Telegram-бот** для автоматической генерации профилей и универсальных подписок для **Incy, Happ, Sing-Box, Shadowrocket, v2rayN / v2rayNG, Streisand, Surge, Hiddify, Nekobox** и других современных клиентов.
 
 [![Ubuntu 22.04+](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-orange?logo=ubuntu)](https://ubuntu.com)
 [![Debian 12](https://img.shields.io/badge/Debian-12-red?logo=debian)](https://debian.org)
