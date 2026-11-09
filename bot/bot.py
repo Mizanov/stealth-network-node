@@ -430,15 +430,41 @@ async def deliver_user_credentials(
     sub_info: dict,
     is_self_service: bool = False,
     reality_link: str = "",
-    hy2_link: str = ""
+    hy2_link: str = "",
+    xhttp_link: str = ""
 ):
     sub_url = sub_info.get("subscription_url") or sub_info.get("sub_url", "")
-    sb_json = sub_info.get("singbox_json_url", "")
-    hy2_json = sub_info.get("hy2_json_url", "")
     if not reality_link:
-        reality_link = sub_info.get("vless_link") or sub_info.get("reality_link", "")
+        reality_link = sub_info.get("vless_reality_link") or sub_info.get("vless_link") or sub_info.get("reality_link", "")
     if not hy2_link:
         hy2_link = sub_info.get("hy2_link", "")
+    if not xhttp_link:
+        xhttp_link = sub_info.get("vless_xhttp_link") or sub_info.get("xhttp_link", "")
+
+    # Dynamic fallback reconstruction if any link is missing
+    u_uuid = sub_info.get("uuid") or sub_info.get("vless_uuid")
+    effective_sni = REALITY_SNI or DOMAIN
+    if not reality_link and u_uuid and REALITY_PUBLIC_KEY:
+        reality_link = (
+            f"vless://{u_uuid}@{DOMAIN}:{REALITY_PORT}?"
+            f"security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&"
+            f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
+            f"sni={effective_sni}&sid={REALITY_SHORT_ID}#REALITY-Vision-{username}"
+        )
+    if not xhttp_link and u_uuid and REALITY_PUBLIC_KEY:
+        xhttp_link = (
+            f"vless://{u_uuid}@{DOMAIN}:{XHTTP_PORT}?"
+            f"security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&"
+            f"headerType=none&fp=chrome&type=xhttp&path=%2F{XHTTP_PATH}&"
+            f"sni={effective_sni}&sid={REALITY_SHORT_ID}#REALITY-XHTTP-{username}"
+        )
+    if not hy2_link:
+        u_pass = sub_info.get("trojan_pass") or sub_info.get("password")
+        if u_pass and HY2_PORT:
+            hy2_link = (
+                f"hysteria2://{u_pass}@{DOMAIN}:{HY2_PORT}/?"
+                f"sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
+            )
 
     header = "🎉 **Поздравляем! Твой персональный ключ готов!** 🚀" if is_self_service else f"✅ **Ключ для `{username}` успешно создан!**"
     caption = (
@@ -450,16 +476,9 @@ async def deliver_user_credentials(
         f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
     )
 
-    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)] if sb_json else []
-    if hy2_json:
-        json_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json))
-
-    keyboard = []
-    if sub_url:
-        keyboard.append([InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)])
-    if json_buttons:
-        keyboard.append(json_buttons)
-    keyboard.append([InlineKeyboardButton("📖 Инструкция", callback_data="user_guide")])
+    keyboard = [
+        [InlineKeyboardButton("📖 Инструкции", callback_data="user_guide")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     qr_target = reality_link or sub_url
@@ -492,7 +511,8 @@ async def deliver_user_credentials(
     direct_msg = (
         f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
         f"1️⃣ **VLESS + REALITY + Vision:**\n`{reality_link}`\n\n"
-        f"2️⃣ **Hysteria 2 Salamander:**\n`{hy2_link}`"
+        f"2️⃣ **Hysteria 2 Salamander:**\n`{hy2_link}`\n\n"
+        f"3️⃣ **VLESS + REALITY + XHTTP:**\n`{xhttp_link}`"
     )
     kb = get_user_registered_keyboard() if is_self_service else get_admin_keyboard()
     await target_msg.reply_text(
@@ -598,6 +618,7 @@ async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     trojan_pass = udata.get("trojan_pass", "")
     reality_link = f"vless://{vless_uuid}@{DOMAIN}:{REALITY_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-Vision-{username}"
     hy2_link = f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
+    xhttp_link = f"vless://{vless_uuid}@{DOMAIN}:{XHTTP_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F{XHTTP_PATH}&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-XHTTP-{username}"
 
     if update.callback_query:
         await update.callback_query.answer()
@@ -608,7 +629,8 @@ async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sub_info,
         is_self_service=True,
         reality_link=reality_link,
-        hy2_link=hy2_link
+        hy2_link=hy2_link,
+        xhttp_link=xhttp_link
     )
 
 
@@ -1036,7 +1058,7 @@ async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await show_user_profile(update, context)
         elif text in ("📊 Мой трафик", "📊 Трафик"):
             await show_user_traffic(update, context)
-        elif text in ("📖 Инструкция", "📖 Инструкция по подключению", "/help"):
+        elif text in ("📖 Инструкция", "📖 Инструкция по подключению", "📖 Инструкции", "Инструкция", "Инструкции", "/help"):
             await show_user_guide(update, context)
         else:
             existing = get_user_by_tg_id(user.id)
