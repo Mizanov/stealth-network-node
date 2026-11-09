@@ -132,7 +132,7 @@ class TestNginxHardening(unittest.TestCase):
         self.assertIn("access_log off;", subs_block)
 
     def test_websocket_proxy_timeouts_extended(self):
-        """WebSocket proxy timeout must be 1d (not 60s) to prevent idle VPN drops."""
+        """WebSocket proxy timeout must be 1d (not 60s) to prevent idle connection drops."""
         ws_block = self.nginx_conf[self.nginx_conf.find("location @ws_proxy"):]
         ws_block = ws_block[:ws_block.find("# gzip")]
         self.assertIn("proxy_read_timeout                 1d;", ws_block)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VPN Subscription Security & Token Manager
+Network Node Subscription Security & Token Manager
 Replaces predictable username-based subscription URLs with cryptographically secure,
 unguessable tokens (128-bit entropy).
 Supports token generation, rotation, revocation, and automated cleanup.
@@ -147,7 +147,7 @@ def create_or_update_subscription(
     """
     Creates or updates subscription files using a secure token.
     Cleans up any previous tokenized files for this user.
-    Supports dual-transport modern VPN:
+    Supports dual-transport modern protocols:
     - Primary: VLESS + REALITY + Vision (TCP)
     - Backup: VLESS + XHTTP + REALITY
     - Legacy: VLESS WS + TLS & Trojan WS + TLS

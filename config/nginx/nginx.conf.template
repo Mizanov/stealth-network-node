@@ -178,7 +178,7 @@ http {
             add_header Content-disposition "attachment";
         }
 
-        # Trojan (VPN WebSocket proxy - access log muted to protect secret path)
+        # Trojan (WebSocket proxy tunnel - access log muted to protect secret path)
         location = /{{TROJAN_PATH}} {
             access_log off;
             log_not_found off;
@@ -186,7 +186,7 @@ http {
             try_files "" @ws_proxy;
         }
 
-        # VLESS (VPN WebSocket proxy - access log muted to protect secret path)
+        # VLESS (WebSocket proxy tunnel - access log muted to protect secret path)
         location = /{{VLESS_PATH}} {
             access_log off;
             log_not_found off;
@@ -220,7 +220,7 @@ http {
             proxy_set_header X-Forwarded-Host  $host;
             proxy_set_header X-Forwarded-Port  $server_port;
 
-            # Proxy timeouts (extended for persistent WebSocket VPN tunnels)
+            # Proxy timeouts (extended for persistent WebSocket secure tunnels)
             proxy_connect_timeout              60s;
             proxy_send_timeout                 1d;
             proxy_read_timeout                 1d;

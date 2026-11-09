@@ -2,7 +2,7 @@
 # ==============================================================================
 # Hardened VPS Snapshot Backup & Restore Script
 # Creates a compressed, cryptographically and structurally verified archive
-# of critical VPN configs, certificates & bot data with strict permissions.
+# of critical network node configs, certificates & bot data with strict permissions.
 # ==============================================================================
 
 set -euo pipefail

@@ -115,7 +115,7 @@ VLESS_TEMPLATE = os.getenv("VLESS_TEMPLATE", "/opt/incy-bot/template-vless.json"
 TROJAN_TEMPLATE = os.getenv("TROJAN_TEMPLATE", "/opt/incy-bot/template-trj.json").strip()
 SINGBOX_CONTROL = os.getenv("SINGBOX_CONTROL_BIN", "/usr/local/bin/singbox-control").strip()
 
-# Dual-transport modern VPN: Xray REALITY & XHTTP settings
+# Dual-transport modern node: Xray REALITY & XHTTP settings
 REALITY_PORT = int(os.getenv("REALITY_PORT", "8443").strip())
 XHTTP_PORT = int(os.getenv("XHTTP_PORT", "8444").strip())
 HY2_PORT = int(os.getenv("HY2_PORT", "443").strip())

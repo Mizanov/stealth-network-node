@@ -370,7 +370,7 @@ def remove_user_traffic(
 ) -> bool:
     """
     Removes user entry and associated _raw_last keys from persistent storage.
-    Called when a user is deleted from VPN configuration.
+    Called when a user is deleted from network node configuration.
     """
     lock_dir = os.path.dirname(lock_path)
     if lock_dir:

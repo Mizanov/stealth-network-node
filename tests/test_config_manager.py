@@ -41,7 +41,7 @@ class TestUsernameValidation(unittest.TestCase):
     """Verifies strict username validation against malicious input and format errors."""
 
     def test_valid_usernames(self):
-        valid_cases = ["alice", "bob_123", "charlie-vpn", "A", "User_Name-99", "12345"]
+        valid_cases = ["alice", "bob_123", "charlie-net", "A", "User_Name-99", "12345"]
         for u in valid_cases:
             self.assertEqual(validate_username(u), u)
 

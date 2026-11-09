@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unit tests for VPN Subscription Security & Tokenization (Stage 3).
+Unit tests for Secure Node Subscription Security & Tokenization (Stage 3).
 Verifies:
 1. Cryptographic token generation (128-bit entropy, URL-safe)
 2. No Telegram ID or username in public URLs or file paths
@@ -82,7 +82,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username=username,
             vless_uuid="uuid-alice-1234",
             trojan_pass="pass-alice-5678",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="secret_sub_path",
             vless_path="vless_ws",
             trojan_path="trj_ws",
@@ -125,7 +125,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username="user_alpha",
             vless_uuid="uuid-alpha",
             trojan_pass="pass-alpha",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
@@ -140,7 +140,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username="user_beta",
             vless_uuid="uuid-beta",
             trojan_pass="pass-beta",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
@@ -164,7 +164,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username=username,
             vless_uuid="uuid-charlie",
             trojan_pass="pass-charlie",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
@@ -184,7 +184,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         # Rotate token
         res2 = rotate_subscription_token(
             username=username,
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
@@ -215,7 +215,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username=username,
             vless_uuid="uuid-dave",
             trojan_pass="pass-dave",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
@@ -244,7 +244,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         # Querying info must return None
         info = get_subscription_info(
             username=username,
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             registry_path=self.registry_path,
             lock_path=self.lock_path
@@ -278,7 +278,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
 
         migrated = sync_subscriptions_from_config(
             config_path=mock_cfg,
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="vpath",
             trojan_path="tpath",
@@ -291,7 +291,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
         self.assertEqual(migrated, 1)
 
         # Verify user now has token in registry
-        info = get_subscription_info("legacy_user", "vpn.example.com", "sub", self.registry_path, self.lock_path)
+        info = get_subscription_info("legacy_user", "node.example.com", "sub", self.registry_path, self.lock_path)
         self.assertIsNotNone(info)
         token = info["token"]
         self.assertTrue(os.path.exists(os.path.join(self.www_dir, f"{token}.txt")))
@@ -320,7 +320,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
 
         rotated = rotate_subscription_token(
             username="unmigrated_user",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="vpath",
             trojan_path="tpath",
@@ -347,7 +347,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             username="member_1",
             vless_uuid="uuid-m1",
             trojan_pass="pass-m1",
-            domain="vpn.example.com",
+            domain="node.example.com",
             subs_path="sub",
             vless_path="v",
             trojan_path="t",
