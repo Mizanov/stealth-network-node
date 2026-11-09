@@ -251,7 +251,7 @@ systemctl enable --now nginx
 systemctl restart nginx
 
 # 11. Setup Xray-Core (VLESS REALITY Vision & XHTTP)
-info "Setting up Xray-Core for high-speed REALITY & anti-DPI XHTTP..."
+info "Setting up Xray-Core for high-speed REALITY & streaming XHTTP..."
 ARCH=$(uname -m)
 case "$ARCH" in
     x86_64) XRAY_ARCH="64" ;;

@@ -137,7 +137,7 @@ if [ -f "$SCRIPT_DIR/scripts/download-rulesets.sh" ]; then
 fi
 
 # 7.5 Setup & Upgrade Xray-Core (VLESS REALITY & XHTTP Dual-Transport)
-info "Настройка Xray-Core для высокоскоростного REALITY и анти-DPI XHTTP..."
+info "Настройка Xray-Core для высокоскоростного REALITY и потокового XHTTP..."
 ARCH=$(uname -m)
 case "$ARCH" in
     x86_64) XRAY_ARCH="64" ;;
