@@ -160,6 +160,15 @@ def reload_singbox():
     run_privileged_control("reload")
 
 
+def escape_md(text: str) -> str:
+    """Escapes Telegram Markdown v1 special characters outside code blocks."""
+    if not text:
+        return ""
+    for ch in ("_", "*", "`", "["):
+        text = text.replace(ch, f"\\{ch}")
+    return text
+
+
 def get_admin_keyboard():
     keyboard = [
         ["➕ Создать ключ", "👥 Список участников"],
@@ -262,6 +271,8 @@ def create_user_singbox(username: str, extra_meta: Optional[Dict[str, Any]] = No
             "username": valid_username,
             "uuid": new_uuid,
             "token": sub_info["token"],
+            "sub_url": sub_info["sub_url"],
+            "subscription_url": sub_info["sub_url"],
             "incy_sub_url": sub_info["sub_url"],
             "singbox_json_url": sub_info["singbox_json_url"],
             "hy2_json_url": sub_info.get("hy2_json_url", ""),
@@ -381,8 +392,9 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     target = update.callback_query.message if update.callback_query else update.message
     if existing:
         username, _ = existing
+        safe_name = escape_md(user.first_name or "странник")
         msg = (
-            f"👋 С возвращением, космический странник {user.first_name}! 🚀\n\n"
+            f"👋 С возвращением, космический странник {safe_name}! 🚀\n\n"
             f"Добро пожаловать в **Личный кабинет защищённого узла связи**.\n\n"
             f"👤 **Твой позывной:** `{username}`\n"
             f"🟢 **Статус соединения:** Турбины на максимуме, полёт отличный!\n\n"
@@ -396,11 +408,15 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             ]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await target.reply_text(msg, reply_markup=get_user_registered_keyboard(), parse_mode="Markdown")
+        try:
+            await target.reply_text(msg, reply_markup=get_user_registered_keyboard(), parse_mode="Markdown")
+        except Exception:
+            await target.reply_text(msg.replace("**", "").replace("`", ""), reply_markup=get_user_registered_keyboard())
         await target.reply_text("Выберите необходимое действие в меню:", reply_markup=reply_markup)
     else:
+        safe_name = escape_md(user.first_name or "друг")
         msg = (
-            f"👋 Привет, {user.first_name}! На связи персональный узел связи! 🚀\n\n"
+            f"👋 Привет, {safe_name}! На связи персональный узел связи! 🚀\n\n"
             f"Да-да, тот самый сервер в Финляндии, про который ходят легенды. "
             f"Никакой рекламы казино, никаких падений посреди любимого сериала в пятницу вечером "
             f"и никаких зависающих картинок с котиками.\n\n"
@@ -420,7 +436,10 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("📖 Инструкция по подключению", callback_data="user_guide")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await target.reply_text(msg, reply_markup=get_user_unregistered_keyboard(), parse_mode="Markdown")
+        try:
+            await target.reply_text(msg, reply_markup=get_user_unregistered_keyboard(), parse_mode="Markdown")
+        except Exception:
+            await target.reply_text(msg.replace("**", "").replace("`", ""), reply_markup=get_user_unregistered_keyboard())
         await target.reply_text("Нажмите для выпуска персонального ключа:", reply_markup=reply_markup)
 
 
@@ -433,7 +452,15 @@ async def deliver_user_credentials(
     hy2_link: str = "",
     xhttp_link: str = ""
 ):
-    sub_url = sub_info.get("subscription_url") or sub_info.get("sub_url", "")
+    sub_url = (
+        sub_info.get("subscription_url")
+        or sub_info.get("sub_url")
+        or sub_info.get("incy_sub_url")
+        or ""
+    )
+    if not sub_url and sub_info.get("token") and DOMAIN and SUBS_PATH:
+        sub_url = f"https://{DOMAIN}/{SUBS_PATH}/{sub_info['token']}.txt"
+
     if not reality_link:
         reality_link = sub_info.get("vless_reality_link") or sub_info.get("vless_link") or sub_info.get("reality_link", "")
     if not hy2_link:
@@ -467,21 +494,23 @@ async def deliver_user_credentials(
             )
 
     header = "🎉 **Поздравляем! Твой персональный ключ готов!** 🚀" if is_self_service else f"✅ **Ключ для `{username}` успешно создан!**"
+    sub_line = f"`{sub_url}`" if sub_url else "_Формируется..._"
     caption = (
         f"{header}\n\n"
         f"👤 **Позывной:** `{username}`\n"
         f"🟢 **Статус:** Активен на максимальной скорости\n\n"
         f"📋 **Универсальная ссылка подписки (5-в-1):**\n"
-        f"`{sub_url}`\n\n"
-        f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
+        f"{sub_line}\n\n"
+        f"💡 *Отсканируйте QR-код в приложении или нажмите кнопку ниже для быстрого подключения.*"
     )
 
-    keyboard = [
-        [InlineKeyboardButton("📖 Инструкции", callback_data="user_guide")]
-    ]
+    keyboard = []
+    if sub_url:
+        keyboard.append([InlineKeyboardButton("🚀 Подключить подписку (5-в-1)", url=sub_url)])
+    keyboard.append([InlineKeyboardButton("📖 Инструкции", callback_data="user_guide")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    qr_target = reality_link or sub_url
+    qr_target = sub_url or reality_link
     qr_img = generate_qr(qr_target) if qr_target else None
 
     if qr_img:
@@ -493,20 +522,34 @@ async def deliver_user_credentials(
                 reply_markup=reply_markup
             )
         except Exception as err:
-            logger.warning(f"Failed to send QR photo: {err}")
+            logger.warning(f"Failed to send QR photo with markdown: {err}")
+            try:
+                await target_msg.reply_photo(
+                    photo=qr_img,
+                    caption=caption[:1024].replace("*", "").replace("`", ""),
+                    reply_markup=reply_markup
+                )
+            except Exception:
+                await target_msg.reply_text(
+                    caption,
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup,
+                    disable_web_page_preview=True
+                )
+    else:
+        try:
             await target_msg.reply_text(
                 caption,
                 parse_mode="Markdown",
                 reply_markup=reply_markup,
                 disable_web_page_preview=True
             )
-    else:
-        await target_msg.reply_text(
-            caption,
-            parse_mode="Markdown",
-            reply_markup=reply_markup,
-            disable_web_page_preview=True
-        )
+        except Exception:
+            await target_msg.reply_text(
+                caption.replace("*", "").replace("`", ""),
+                reply_markup=reply_markup,
+                disable_web_page_preview=True
+            )
 
     direct_msg = (
         f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
@@ -515,12 +558,19 @@ async def deliver_user_credentials(
         f"3️⃣ **VLESS + REALITY + XHTTP:**\n`{xhttp_link}`"
     )
     kb = get_user_registered_keyboard() if is_self_service else get_admin_keyboard()
-    await target_msg.reply_text(
-        direct_msg,
-        parse_mode="Markdown",
-        reply_markup=kb,
-        disable_web_page_preview=True
-    )
+    try:
+        await target_msg.reply_text(
+            direct_msg,
+            parse_mode="Markdown",
+            reply_markup=kb,
+            disable_web_page_preview=True
+        )
+    except Exception:
+        await target_msg.reply_text(
+            direct_msg.replace("*", "").replace("`", ""),
+            reply_markup=kb,
+            disable_web_page_preview=True
+        )
 
 
 async def request_access_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -584,13 +634,18 @@ async def request_access_handler(update: Update, context: ContextTypes.DEFAULT_T
     # Notify admins about new user registration
     for admin_id in ADMIN_IDS:
         try:
+            safe_fn = escape_md(user.full_name or "—")
+            safe_tg = f"@{escape_md(user.username)}" if user.username else "—"
             admin_notify = (
                 "🔔 **Новый участник получил доступ:**\n\n"
                 f"• Профиль: `{candidate_name}`\n"
-                f"• Имя: {user.full_name}\n"
-                f"• Telegram: @{user.username or '—'} (`{user.id}`)"
+                f"• Имя: {safe_fn}\n"
+                f"• Telegram: {safe_tg} (`{user.id}`)"
             )
-            await context.bot.send_message(chat_id=admin_id, text=admin_notify, parse_mode="Markdown")
+            try:
+                await context.bot.send_message(chat_id=admin_id, text=admin_notify, parse_mode="Markdown")
+            except Exception:
+                await context.bot.send_message(chat_id=admin_id, text=admin_notify.replace("**", "").replace("`", ""))
         except Exception as e:
             logger.debug("Failed to send admin notification to %s: %s", admin_id, e)
 
@@ -726,9 +781,11 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if meta and isinstance(meta, dict):
             parts = []
             if meta.get("tg_username"):
-                parts.append(f"@{meta['tg_username']}")
+                safe_tg_user = escape_md(str(meta['tg_username']))
+                parts.append(f"@{safe_tg_user}")
             if meta.get("tg_first_name"):
-                parts.append(meta["tg_first_name"])
+                safe_fn = escape_md(str(meta['tg_first_name']))
+                parts.append(safe_fn)
             if meta.get("tg_id"):
                 parts.append(f"ID:{meta['tg_id']}")
             if parts:
@@ -745,7 +802,12 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     ])
 
     reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
-    await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+    try:
+        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+    except Exception as e:
+        logger.warning("Failed to send list_users_command with Markdown: %s. Falling back to plain text.", e)
+        clean_msg = msg.replace("**", "").replace("`", "")
+        await update.message.reply_text(clean_msg, reply_markup=reply_markup)
 
 
 @admin_required
@@ -789,13 +851,22 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 reply_markup=reply_markup
             )
         except Exception:
-            await update.callback_query.message.reply_text(
-                msg,
-                parse_mode="Markdown",
-                reply_markup=reply_markup
-            )
+            try:
+                await update.callback_query.message.reply_text(
+                    msg,
+                    parse_mode="Markdown",
+                    reply_markup=reply_markup
+                )
+            except Exception:
+                await update.callback_query.message.reply_text(
+                    msg.replace("**", "").replace("`", ""),
+                    reply_markup=reply_markup
+                )
     else:
-        await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+        try:
+            await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+        except Exception:
+            await update.message.reply_text(msg.replace("**", "").replace("`", ""), reply_markup=reply_markup)
 
 
 async def process_new_user(update: Update, username: str):
@@ -915,14 +986,15 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tg_details = ""
         if meta and isinstance(meta, dict):
             tg_id = meta.get("tg_id", "—")
-            tg_user = f"@{meta.get('tg_username')}" if meta.get("tg_username") else "—"
-            tg_name = meta.get("tg_first_name", "")
+            tg_user = f"@{escape_md(str(meta['tg_username']))}" if meta.get("tg_username") else "—"
+            raw_name = meta.get("tg_first_name", "")
             if meta.get("tg_last_name"):
-                tg_name += f" {meta.get('tg_last_name')}"
+                raw_name += f" {meta.get('tg_last_name')}"
+            tg_name = escape_md(raw_name) if raw_name else "—"
             issued = meta.get("issued_at", meta.get("created_at", "—"))
             tg_details = (
                 f"📱 **Telegram:** {tg_user}\n"
-                f"👤 **Имя:** {tg_name or '—'}\n"
+                f"👤 **Имя:** {tg_name}\n"
                 f"🆔 **Telegram ID:** `{tg_id}`\n"
                 f"📅 **Выдан:** `{issued}`\n\n"
             )
@@ -969,7 +1041,10 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🔄 Сбросить трафик", callback_data=f"rst_{username}")],
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
-        await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        try:
+            await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception:
+            await query.message.reply_text(msg.replace("**", "").replace("`", ""), reply_markup=InlineKeyboardMarkup(keyboard))
     elif data.startswith("rst_"):
         username = data[4:]
         reset_user_traffic(username)
