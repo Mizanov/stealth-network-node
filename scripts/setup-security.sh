@@ -109,21 +109,28 @@ systemctl enable fail2ban >/dev/null 2>&1 || true
 systemctl restart fail2ban
 ok "Fail2ban is active (auto-bans failed SSH attempts via UFW for 24 hours)."
 
-# 4. SSH Hardening (Fail2ban Protection + Key/Password Authentication)
-info "Configuring SSH security (protected by Fail2ban rate-limiting)..."
+# 4. SSH Hardening (Enforcing Key-Only Authentication, Disabling Passwords)
+info "Configuring SSH security (Enforcing key-only authentication, disabling passwords)..."
 mkdir -p /etc/ssh/sshd_config.d
 
-cat << 'EOF' > /etc/ssh/sshd_config.d/99-security.conf
-PasswordAuthentication yes
+if [ -s /root/.ssh/authorized_keys ]; then
+    cat << 'EOF' > /etc/ssh/sshd_config.d/01-security.conf
+PasswordAuthentication no
+KbdInteractiveAuthentication no
 PubkeyAuthentication yes
-PermitRootLogin yes
+PermitRootLogin prohibit-password
 EOF
+    # Ensure no existing configuration file overrides PasswordAuthentication to yes
+    sed -i 's/PasswordAuthentication yes/PasswordAuthentication no/g' /etc/ssh/sshd_config.d/*.conf /etc/ssh/sshd_config 2>/dev/null || true
 
-if sshd -t >/dev/null 2>&1; then
-    systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
-    ok "SSH configured: Key auth enabled, protected by Fail2ban."
+    if sshd -t >/dev/null 2>&1; then
+        systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+        ok "SSH configured: Key-only authentication strictly enforced (PasswordAuthentication=no)."
+    else
+        warn "sshd configuration test failed; changes not reloaded to avoid lockout."
+    fi
 else
-    warn "sshd configuration test failed; changes not reloaded to avoid lockout."
+    warn "No keys found in /root/.ssh/authorized_keys! Keeping PasswordAuthentication enabled temporarily to prevent lockout. Add your SSH public key and re-run this script."
 fi
 
 # 5. Automatic Security Patches
