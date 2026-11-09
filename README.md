@@ -16,8 +16,8 @@
 [![Design: Hallmark Anti-Slop](https://img.shields.io/badge/Design-Hallmark%20Anti--Slop-blue?logo=ghost)](https://github.com/Nutlope/hallmark)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> 💡 **Ищете NaiveProxy, Telegram Web Proxy и каскадный шлюз с раздельной маршрутизацией?**  
-> Обратите внимание на наш второй репозиторий: **[stealth-proxy-cascade](https://github.com/Mizanov/stealth-proxy-cascade)** — специализированный узел с Caddy v2, NaiveProxy (Chromium stack), Telegram Web Proxy и Smart Cascade.
+> 💡 **Ищете NaiveProxy (Chromium stack) и Telegram Web Proxy?**  
+> Обратите внимание на наш второй репозиторий: **[naive-and-tg-proxy](https://github.com/Mizanov/naive-and-tg-proxy)** — специализированный узел с Caddy v2, NaiveProxy и Telegram Web Proxy.
 
 </div>
 
