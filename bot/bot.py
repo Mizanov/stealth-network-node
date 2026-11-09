@@ -400,7 +400,7 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await target.reply_text("Выберите необходимое действие в меню:", reply_markup=reply_markup)
     else:
         msg = (
-            f"👋 Опачки, {user.first_name}! На связи персональный узел связи! 🚀\n\n"
+            f"👋 Привет, {user.first_name}! На связи персональный узел связи! 🚀\n\n"
             f"Да-да, тот самый сервер в Финляндии, про который ходят легенды. "
             f"Никакой рекламы казино, никаких падений посреди любимого сериала в пятницу вечером "
             f"и никаких зависающих картинок с котиками.\n\n"
