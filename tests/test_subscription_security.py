@@ -341,7 +341,7 @@ class TestSubscriptionLifecycle(unittest.TestCase):
             "tg_id": 123456789,
             "tg_username": "test_user",
             "tg_first_name": "Test",
-            "tg_last_name": "Family"
+            "tg_last_name": "User"
         }
         res = create_or_update_subscription(
             username="member_1",
