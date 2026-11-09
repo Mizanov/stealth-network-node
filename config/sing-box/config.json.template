@@ -88,8 +88,7 @@
   "outbounds": [
     {
       "type": "direct",
-      "tag": "direct",
-      "domain_strategy": "ipv4_only"
+      "tag": "direct"
     },
     {
       "type": "socks",
