@@ -382,11 +382,11 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if existing:
         username, _ = existing
         msg = (
-            f"👋 Здравствуйте, {user.first_name}!\n\n"
-            f"Добро пожаловать в **Личный кабинет участника защищённого узла**.\n\n"
-            f"👤 **Ваш профиль:** `{username}`\n"
-            f"🟢 **Статус доступа:** Активен\n\n"
-            f"Здесь вы можете просмотреть параметры подключения, получить QR-код для настройки устройств или проверить статистику трафика."
+            f"👋 С возвращением, космический странник {user.first_name}! 🚀\n\n"
+            f"Добро пожаловать в **Личный кабинет защищённого узла связи**.\n\n"
+            f"👤 **Твой позывной:** `{username}`\n"
+            f"🟢 **Статус соединения:** Турбины на максимуме, полёт отличный!\n\n"
+            f"Здесь можно в один тап восстановить параметры подключения, показать QR-код новому гаджету или проверить, сколько гигабайт ты уже прокачал через сервер."
         )
         keyboard = [
             [InlineKeyboardButton("📱 Мой профиль и QR-код", callback_data="user_profile")],
@@ -400,22 +400,28 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await target.reply_text("Выберите необходимое действие в меню:", reply_markup=reply_markup)
     else:
         msg = (
-            f"👋 Здравствуйте, {user.first_name}!\n\n"
-            f"Добро пожаловать в **Персональный портал доступа к защищённому узлу связи**.\n\n"
-            f"Этот узел обеспечивает безопасный шифрованный транспорт данных через современные протоколы (VLESS REALITY Vision, XHTTP, Hysteria 2 Salamander).\n\n"
-            f"📌 **Правила узла:**\n"
-            f"• Доступ предоставляется участникам персонально (1 профиль на Telegram-аккаунт).\n"
-            f"• Все протоколы объединены в единую универсальную подписку (5 в 1).\n"
-            f"• Поддерживаются устройства на iOS, Android, Windows, macOS и Linux.\n\n"
-            f"Нажмите кнопку ниже, чтобы активировать персональный доступ:"
+            f"👋 Опачки, {user.first_name}! На связи персональный узел связи! 🚀\n\n"
+            f"Да-да, тот самый сервер в Финляндии, про который ходят легенды. "
+            f"Никакой рекламы казино, никаких падений посреди любимого сериала в пятницу вечером "
+            f"и никаких зависающих картинок с котиками.\n\n"
+            f"🛸 **Что здесь вообще происходит?**\n"
+            f"Мы собрали на одном узле всё самое передовое, чтобы интернет летал со скоростью света:\n"
+            f"• ⚡ **VLESS REALITY & Vision** — для провайдеров вы просто читаете сайт дизайн-студии, а сами на космической скорости смотрите 4K-видео.\n"
+            f"• 🚀 **Hysteria 2 на протоколе UDP** — пробивает плохой Wi-Fi, мобильные помехи и даже соседскую дрель.\n"
+            f"• 📱 **Универсальная подписка 5-в-1** — один волшебный ключ для смартфона, ноутбука, планшета и хоть умного холодильника.\n\n"
+            f"🎫 **Правила нашего закрытого клуба:**\n"
+            f"1. Нажмите кнопку **«🚀 Получить ключ в один клик»** внизу.\n"
+            f"2. Бот мгновенно выдаст персональную ссылку и QR-код.\n"
+            f"3. ⚠️ *Внимание:* ключ выдаётся **строго один раз на человека** (в одни руки, чтобы сервер не лопнул от перегрузки).\n\n"
+            f"Жмите кнопку ниже — и приятного полёта! 🪐"
         )
         keyboard = [
-            [InlineKeyboardButton("🚀 Получить доступ к узлу", callback_data="req_access")],
+            [InlineKeyboardButton("🚀 Получить ключ в один клик", callback_data="req_access")],
             [InlineKeyboardButton("📖 Инструкция по подключению", callback_data="user_guide")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         await target.reply_text(msg, reply_markup=get_user_unregistered_keyboard(), parse_mode="Markdown")
-        await target.reply_text("Нажмите для выпуска ключа:", reply_markup=reply_markup)
+        await target.reply_text("Нажмите для выпуска персонального ключа:", reply_markup=reply_markup)
 
 
 async def request_access_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -519,12 +525,12 @@ async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hy2_link = f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
 
     caption = (
-        f"📱 **Ваш персональный профиль подключения**\n\n"
-        f"👤 **Пользователь:** `{username}`\n"
-        f"🟢 **Статус:** Активен\n\n"
-        f"📋 **Универсальная ссылка подписки (5 в 1):**\n"
+        f"🎉 **Поздравляем! Твой персональный ключ готов!** 🚀\n\n"
+        f"👤 **Позывной:** `{username}`\n"
+        f"🟢 **Статус:** Активен на максимальной скорости\n\n"
+        f"📋 **Универсальная ссылка подписки (5-в-1):**\n"
         f"`{sub_url}`\n\n"
-        f"💡 *Отсканируйте QR-код для моментального подключения или скопируйте ссылку подписки.*"
+        f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
     )
 
     json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)]

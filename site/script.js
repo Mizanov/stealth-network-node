@@ -1,79 +1,178 @@
-// Modern Systems Engineering Portfolio Interactions
-document.addEventListener("DOMContentLoaded", () => {
-  // Theme Toggle
-  const themeToggle = document.getElementById("themeToggle");
-  const html = document.documentElement;
+/**
+ * ORBITA // DESIGN LAB - Spatial Canvas & Interaction Engine
+ */
 
-  const savedTheme = localStorage.getItem("theme") || 
-    (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-  
-  html.setAttribute("data-theme", savedTheme);
-  updateThemeIcon(savedTheme);
+document.addEventListener('DOMContentLoaded', () => {
+  initCosmicCanvas();
+  initHeroParallax();
+  initScopePills();
+  initMobileMenu();
+});
 
-  if (themeToggle) {
-    themeToggle.addEventListener("click", () => {
-      const currentTheme = html.getAttribute("data-theme");
-      const newTheme = currentTheme === "dark" ? "light" : "dark";
-      html.setAttribute("data-theme", newTheme);
-      localStorage.setItem("theme", newTheme);
-      updateThemeIcon(newTheme);
-    });
-  }
+/* ==============================================================================
+   COSMIC CANVAS (Dynamic Starfield & Particle Dust)
+   ============================================================================== */
+function initCosmicCanvas() {
+  const canvas = document.getElementById('cosmic-canvas');
+  if (!canvas) return;
 
-  function updateThemeIcon(theme) {
-    if (!themeToggle) return;
-    themeToggle.innerHTML = theme === "dark" 
-      ? `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`
-      : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
-  }
+  const ctx = canvas.getContext('2d');
+  let width = (canvas.width = window.innerWidth);
+  let height = (canvas.height = window.innerHeight);
 
-  // Tech Stack Filter Tabs
-  const tabBtns = document.querySelectorAll(".stack-tab-btn");
-  const chips = document.querySelectorAll(".stack-chip");
-
-  tabBtns.forEach(btn => {
-    btn.addEventListener("click", () => {
-      tabBtns.forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-
-      const category = btn.getAttribute("data-cat");
-      chips.forEach(chip => {
-        if (category === "all" || chip.getAttribute("data-cat") === category) {
-          chip.style.display = "flex";
-        } else {
-          chip.style.display = "none";
-        }
-      });
-    });
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    createStars();
   });
 
-  // Contact Form Handling (Simulation with professional feedback)
-  const contactForm = document.getElementById("contactForm");
-  const toast = document.getElementById("toast");
+  const starCount = Math.min(Math.floor((width * height) / 8000), 160);
+  let stars = [];
 
-  if (contactForm) {
-    contactForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const submitBtn = contactForm.querySelector("button[type='submit']");
-      const originalText = submitBtn.innerText;
-      submitBtn.innerText = "Encrypting & Sending...";
-      submitBtn.disabled = true;
+  function createStars() {
+    stars = [];
+    for (let i = 0; i < starCount; i++) {
+      stars.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        radius: Math.random() * 1.5 + 0.3,
+        alpha: Math.random() * 0.8 + 0.2,
+        speedAlpha: (Math.random() * 0.02 + 0.005) * (Math.random() > 0.5 ? 1 : -1),
+        vx: (Math.random() - 0.5) * 0.15,
+        vy: (Math.random() - 0.5) * 0.15,
+        color: Math.random() > 0.8 ? '#38bdf8' : (Math.random() > 0.6 ? '#a5b4fc' : '#ffffff')
+      });
+    }
+  }
 
-      setTimeout(() => {
-        contactForm.reset();
-        submitBtn.innerText = originalText;
-        submitBtn.disabled = false;
-        showToast("Сообщение успешно зашифровано и отправлено!");
-      }, 900);
+  createStars();
+
+  let mouseX = width / 2;
+  let mouseY = height / 2;
+
+  window.addEventListener('mousemove', (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  function render() {
+    ctx.clearRect(0, 0, width, height);
+
+    for (let i = 0; i < stars.length; i++) {
+      const s = stars[i];
+
+      // Twinkle
+      s.alpha += s.speedAlpha;
+      if (s.alpha > 0.95 || s.alpha < 0.15) {
+        s.speedAlpha = -s.speedAlpha;
+      }
+
+      // Subtle motion
+      s.x += s.vx;
+      s.y += s.vy;
+
+      if (s.x < 0) s.x = width;
+      if (s.x > width) s.x = 0;
+      if (s.y < 0) s.y = height;
+      if (s.y > height) s.y = 0;
+
+      // Draw Star
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+      ctx.fillStyle = s.color;
+      ctx.globalAlpha = Math.max(0, Math.min(1, s.alpha));
+      ctx.fill();
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  render();
+}
+
+/* ==============================================================================
+   HERO 3D TILT & PARALLAX
+   ============================================================================== */
+function initHeroParallax() {
+  const stage = document.getElementById('hero-stage');
+  if (!stage) return;
+
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
+  if (isMobile) return;
+
+  document.addEventListener('mousemove', (e) => {
+    const rect = stage.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    const deltaX = (e.clientX - centerX) / (window.innerWidth / 2);
+    const deltaY = (e.clientY - centerY) / (window.innerHeight / 2);
+
+    const rotX = -deltaY * 6; // Max 6 deg
+    const rotY = deltaX * 6;
+
+    stage.style.transform = `perspective(1200px) rotateX(${rotX.toFixed(2)}deg) rotateY(${rotY.toFixed(2)}deg) translateZ(10px)`;
+  });
+
+  stage.addEventListener('mouseleave', () => {
+    stage.style.transform = 'perspective(1200px) rotateX(0deg) rotateY(0deg) translateZ(0)';
+  });
+}
+
+/* ==============================================================================
+   SCOPE PILLS & INTERACTION
+   ============================================================================== */
+function initScopePills() {
+  const pills = document.querySelectorAll('.scope-pill');
+  pills.forEach((pill) => {
+    pill.addEventListener('click', () => {
+      pills.forEach((p) => p.classList.remove('active'));
+      pill.classList.add('active');
     });
-  }
+  });
+}
 
-  function showToast(message) {
-    if (!toast) return;
-    toast.innerText = message;
-    toast.classList.add("show");
-    setTimeout(() => {
-      toast.classList.remove("show");
-    }, 4000);
-  }
-});
+window.handleContactSubmit = function () {
+  const feedback = document.getElementById('form-feedback');
+  const nameInput = document.getElementById('contact-name');
+  const emailInput = document.getElementById('contact-email');
+
+  if (!feedback) return;
+
+  feedback.style.color = '#38bdf8';
+  feedback.textContent = 'Transmission received. Orbit telemetry acknowledged.';
+
+  setTimeout(() => {
+    if (nameInput) nameInput.value = '';
+    if (emailInput) emailInput.value = '';
+    const msg = document.getElementById('contact-message');
+    if (msg) msg.value = '';
+    feedback.textContent = '';
+  }, 4000);
+};
+
+/* ==============================================================================
+   MOBILE MENU
+   ============================================================================== */
+function initMobileMenu() {
+  const toggle = document.getElementById('menu-toggle');
+  const nav = document.querySelector('.main-nav');
+  if (!toggle || !nav) return;
+
+  toggle.addEventListener('click', () => {
+    const isHidden = getComputedStyle(nav).display === 'none';
+    if (isHidden) {
+      nav.style.display = 'block';
+      nav.style.position = 'absolute';
+      nav.style.top = '100%';
+      nav.style.left = '0';
+      nav.style.width = '100%';
+      nav.style.background = '#0a0e1e';
+      nav.style.padding = '1.5rem';
+      nav.style.borderBottom = '1px solid rgba(255, 255, 255, 0.1)';
+      nav.querySelector('.nav-links').style.flexDirection = 'column';
+    } else {
+      nav.style.display = 'none';
+    }
+  });
+}
