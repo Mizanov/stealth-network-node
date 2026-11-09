@@ -10,11 +10,11 @@ ufw default allow outgoing
 
 # Allow essential ports only
 ufw allow 22/tcp comment 'SSH'
-ufw allow 80/tcp comment 'HTTP (Let'\''s Encrypt)'
-ufw allow 443/tcp comment 'HTTPS (Sing-Box & Telegram Web Proxy)'
+ufw allow 80/tcp comment 'HTTP'
+ufw allow 443/tcp comment 'HTTPS'
 ufw allow 8443/tcp comment 'Xray REALITY Vision'
 ufw allow 8444/tcp comment 'Xray REALITY XHTTP'
-ufw allow 443/udp comment 'Hysteria 2 UDP (QUIC)'
+ufw allow 443/udp comment 'Hysteria 2 UDP'
 
 # Enable UFW non-interactively
 ufw --force enable
