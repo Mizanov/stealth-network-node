@@ -16,15 +16,14 @@ EnvironmentFile=/opt/incy-bot/.env
 # Security Hardening & Sandboxing
 # Note: NoNewPrivileges, CapabilityBoundingSet, and RestrictSUIDSGID must allow sudo
 # to execute the strictly whitelisted root helper /usr/local/bin/singbox-control via /etc/sudoers.d/incy-bot.
+# Directives that implicitly enforce kernel PR_SET_NO_NEW_PRIVS in systemd.exec
+# (e.g., ProtectKernelTunables, ProtectKernelModules, RestrictAddressFamilies, LockPersonality)
+# must remain omitted so setuid sudo functions properly.
 NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
 ProtectControlGroups=true
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-LockPersonality=true
 ReadWritePaths=/opt/incy-bot /var/www /etc/sing-box /etc/xray /tmp
 
 [Install]

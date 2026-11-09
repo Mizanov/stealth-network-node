@@ -165,10 +165,7 @@ class TestSystemdServiceHardening(unittest.TestCase):
             "PrivateTmp=true",
             "ProtectSystem=strict",
             "ProtectHome=true",
-            "ProtectKernelTunables=true",
-            "ProtectKernelModules=true",
             "ProtectControlGroups=true",
-            "LockPersonality=true",
             "ReadWritePaths=/opt/incy-bot /var/www /etc/sing-box /etc/xray /tmp",
         ]
         for directive in expected_directives:

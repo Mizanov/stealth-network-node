@@ -431,6 +431,8 @@ sed -e "s|{{DOMAIN}}|$MAIN_DOMAIN|g" \
     -e "s|{{HY2_OBFS_PASSWORD}}|$HY2_OBFS_PASSWORD|g" \
     "$SCRIPT_DIR/config/templates/template-hy2.json" > "$WWW_DIR/${FIRST_USER_TOKEN}-hy2.json"
 chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}-hy2.json"
+chown -R incy-bot:www-data "$WWW_DIR"
+chmod 770 "$WWW_DIR"
 
 cat <<EOF > /opt/incy-bot/subscriptions.json
 {

@@ -424,6 +424,85 @@ async def send_user_cabinet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await target.reply_text("Нажмите для выпуска персонального ключа:", reply_markup=reply_markup)
 
 
+async def deliver_user_credentials(
+    target_msg,
+    username: str,
+    sub_info: dict,
+    is_self_service: bool = False,
+    reality_link: str = "",
+    hy2_link: str = ""
+):
+    sub_url = sub_info.get("subscription_url") or sub_info.get("sub_url", "")
+    sb_json = sub_info.get("singbox_json_url", "")
+    hy2_json = sub_info.get("hy2_json_url", "")
+    if not reality_link:
+        reality_link = sub_info.get("vless_link") or sub_info.get("reality_link", "")
+    if not hy2_link:
+        hy2_link = sub_info.get("hy2_link", "")
+
+    header = "🎉 **Поздравляем! Твой персональный ключ готов!** 🚀" if is_self_service else f"✅ **Ключ для `{username}` успешно создан!**"
+    caption = (
+        f"{header}\n\n"
+        f"👤 **Позывной:** `{username}`\n"
+        f"🟢 **Статус:** Активен на максимальной скорости\n\n"
+        f"📋 **Универсальная ссылка подписки (5-в-1):**\n"
+        f"`{sub_url}`\n\n"
+        f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
+    )
+
+    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)] if sb_json else []
+    if hy2_json:
+        json_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json))
+
+    keyboard = []
+    if sub_url:
+        keyboard.append([InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)])
+    if json_buttons:
+        keyboard.append(json_buttons)
+    keyboard.append([InlineKeyboardButton("📖 Инструкция", callback_data="user_guide")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    qr_target = reality_link or sub_url
+    qr_img = generate_qr(qr_target) if qr_target else None
+
+    if qr_img:
+        try:
+            await target_msg.reply_photo(
+                photo=qr_img,
+                caption=caption[:1024],
+                parse_mode="Markdown",
+                reply_markup=reply_markup
+            )
+        except Exception as err:
+            logger.warning(f"Failed to send QR photo: {err}")
+            await target_msg.reply_text(
+                caption,
+                parse_mode="Markdown",
+                reply_markup=reply_markup,
+                disable_web_page_preview=True
+            )
+    else:
+        await target_msg.reply_text(
+            caption,
+            parse_mode="Markdown",
+            reply_markup=reply_markup,
+            disable_web_page_preview=True
+        )
+
+    direct_msg = (
+        f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
+        f"1️⃣ **VLESS + REALITY + Vision:**\n`{reality_link}`\n\n"
+        f"2️⃣ **Hysteria 2 Salamander:**\n`{hy2_link}`"
+    )
+    kb = get_user_registered_keyboard() if is_self_service else get_admin_keyboard()
+    await target_msg.reply_text(
+        direct_msg,
+        parse_mode="Markdown",
+        reply_markup=kb,
+        disable_web_page_preview=True
+    )
+
+
 async def request_access_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     if not user:
@@ -515,65 +594,21 @@ async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await target.reply_text(msg, parse_mode="Markdown")
         return
 
-    sub_url = sub_info["sub_url"]
-    sb_json = sub_info["singbox_json_url"]
-    hy2_json = sub_info.get("hy2_json_url", "")
-
     vless_uuid = udata.get("vless_uuid", "")
     trojan_pass = udata.get("trojan_pass", "")
     reality_link = f"vless://{vless_uuid}@{DOMAIN}:{REALITY_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-Vision-{username}"
     hy2_link = f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
 
-    caption = (
-        f"🎉 **Поздравляем! Твой персональный ключ готов!** 🚀\n\n"
-        f"👤 **Позывной:** `{username}`\n"
-        f"🟢 **Статус:** Активен на максимальной скорости\n\n"
-        f"📋 **Универсальная ссылка подписки (5-в-1):**\n"
-        f"`{sub_url}`\n\n"
-        f"💡 *Отсканируйте QR-код в приложении или скопируйте ссылку подписки.*"
-    )
-
-    json_buttons = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)]
-    if hy2_json:
-        json_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json))
-
-    keyboard = [
-        [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
-        json_buttons,
-        [InlineKeyboardButton("📖 Инструкция", callback_data="user_guide")]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    qr_img = generate_qr(reality_link)
     if update.callback_query:
         await update.callback_query.answer()
 
-    try:
-        await target.reply_photo(
-            photo=qr_img,
-            caption=caption[:1024],
-            parse_mode="Markdown",
-            reply_markup=reply_markup
-        )
-    except Exception as err:
-        logger.warning(f"Failed to send QR photo: {err}")
-        await target.reply_text(
-            caption,
-            parse_mode="Markdown",
-            reply_markup=reply_markup,
-            disable_web_page_preview=True
-        )
-
-    direct_msg = (
-        f"⚡ **Прямые ссылки для ручного импорта (`{username}`):**\n\n"
-        f"1️⃣ **VLESS + REALITY + Vision:**\n`{reality_link}`\n\n"
-        f"2️⃣ **Hysteria 2 Salamander:**\n`{hy2_link}`"
-    )
-    await target.reply_text(
-        direct_msg,
-        parse_mode="Markdown",
-        reply_markup=get_user_registered_keyboard(),
-        disable_web_page_preview=True
+    await deliver_user_credentials(
+        target,
+        username,
+        sub_info,
+        is_self_service=True,
+        reality_link=reality_link,
+        hy2_link=hy2_link
     )
 
 
@@ -739,6 +774,26 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
     else:
         await update.message.reply_text(msg, parse_mode="Markdown", reply_markup=reply_markup)
+
+
+async def process_new_user(update: Update, username: str):
+    user_data = create_user_singbox(username)
+    if not user_data or "error" in user_data:
+        err = user_data.get("error", "Неизвестная ошибка") if user_data else "Ошибка создания"
+        await update.message.reply_text(f"⚠️ Ошибка создания ключа `{username}`: {err}", parse_mode="Markdown")
+        return
+
+    await deliver_user_credentials(update.message, username, user_data, is_self_service=False)
+
+
+@admin_required
+async def new_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        await update.message.reply_text("Использование: `/new <имя_пользователя>`", parse_mode="Markdown")
+        return
+
+    username = context.args[0].strip()
+    await process_new_user(update, username)
 
 
 @admin_required
