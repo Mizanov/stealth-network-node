@@ -99,7 +99,7 @@ fi
 info "Updating repositories and installing base packages..."
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl wget jq git certbot ufw fail2ban unattended-upgrades openssl sed python3-venv python3-pip unzip
+apt-get install -y curl wget jq git certbot ufw fail2ban python3-systemd unattended-upgrades openssl sed python3-venv python3-pip unzip
 
 # 5. Disable IPv6 & Enable BBR
 info "Disabling IPv6 by default to prevent DNS/IP leaks and dual-stack issues..."
