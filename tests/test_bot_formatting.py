@@ -96,8 +96,6 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         self.assertIn("https://example.com/sub/tok99999.txt", caption)
 
     @patch("bot.get_users_list", return_value=["tg_olesya_media", "tg_mizan0v"])
-    @patch("bot.sync_traffic_stats")
-    @patch("bot.get_user_traffic", return_value={"formatted_total": "1.2 MB", "formatted_downlink": "1.0 MB", "formatted_uplink": "200 KB"})
     @patch("bot.get_all_users_meta", return_value={
         "tg_olesya_media": {
             "meta": {
@@ -114,7 +112,7 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
             }
         }
     })
-    async def test_list_users_escapes_underscores(self, mock_meta, mock_traffic, mock_sync, mock_users):
+    async def test_list_users_escapes_underscores(self, mock_meta, mock_users):
         update = MagicMock()
         update.message = AsyncMock()
         update.effective_user.id = 12345678
@@ -127,9 +125,11 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         call_args = update.message.reply_text.call_args
         msg = call_args.args[0] if call_args.args else call_args.kwargs.get("text", "")
 
-        # Must escape the underscore in Olesya_Media
+        # Must escape the underscore in Olesya_Media and omit traffic numbers
         self.assertIn(r"@Olesya\_Media", msg)
         self.assertIn("tg_olesya_media", msg)
+        self.assertNotIn("↓", msg)
+        self.assertNotIn("↑", msg)
 
     def test_hy2_helpers(self):
         link = build_hy2_link("alice", "pass123")

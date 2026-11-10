@@ -772,21 +772,11 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Список пользователей пуст.", reply_markup=get_admin_keyboard())
         return
 
-    try:
-        sync_traffic_stats()
-    except Exception as e:
-        logger.warning("Failed to sync traffic stats in list_users_command: %s", e)
-
     meta_registry = get_all_users_meta()
 
     msg = f"👥 **Список учетных записей ({len(users)}):**\n\n"
     keyboard = []
     for u in users:
-        u_stats = get_user_traffic(u, sync=False)
-        tot_str = u_stats["formatted_total"]
-        dl_str = u_stats["formatted_downlink"]
-        ul_str = u_stats["formatted_uplink"]
-
         user_entry = meta_registry.get(u, {})
         meta = user_entry.get("meta", {}) if isinstance(user_entry, dict) else {}
         tg_info = ""
@@ -803,7 +793,7 @@ async def list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if parts:
                 tg_info = f" ({', '.join(parts)})"
 
-        msg += f"• `{u}`{tg_info} — **{tot_str}** (↓ {dl_str} / ↑ {ul_str})\n"
+        msg += f"• `{u}`{tg_info}\n"
         keyboard.append([
             InlineKeyboardButton(f"🔗 {u}", callback_data=f"info_{u}"),
             InlineKeyboardButton("🗑 Удалить", callback_data=f"del_{u}")
