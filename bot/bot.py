@@ -179,14 +179,9 @@ def build_hy2_link(username: str, trojan_pass: str) -> str:
     )
 
 
-def format_hy2_section(hy2_json: str = "", hy2_link: str = "") -> str:
-    """Formats Hysteria 2 JSON URL and direct URI section for user detail messages."""
-    parts = []
-    if hy2_json:
-        parts.append(f"🚀 **Конфиг Hysteria 2 (JSON):**\n`{hy2_json}`")
-    if hy2_link:
-        parts.append(f"🔗 **Прямая ссылка Hysteria 2:**\n`{hy2_link}`")
-    return ("\n\n" + "\n\n".join(parts)) if parts else ""
+def format_hy2_section(hy2_json: str = "") -> str:
+    """Formats Hysteria 2 JSON URL section for admin user detail messages."""
+    return f"\n\n🚀 **Конфиг Hysteria 2 (JSON):**\n`{hy2_json}`" if hy2_json else ""
 
 
 def get_admin_keyboard():
@@ -1020,9 +1015,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sub_url = sub_info["sub_url"]
             sb_json = sub_info["singbox_json_url"]
             hy2_json = sub_info.get("hy2_json_url", "")
-            trojan_pass = sub_info.get("trojan_pass") or (user_entry.get("trojan_pass", "") if isinstance(user_entry, dict) else "")
-            hy2_link = build_hy2_link(username, trojan_pass)
-            hy2_section = format_hy2_section(hy2_json=hy2_json, hy2_link=hy2_link)
+            hy2_section = format_hy2_section(hy2_json=hy2_json)
             token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
             msg = (
                 f"👤 **Пользователь:** `{username}`\n"
@@ -1106,8 +1099,7 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             new_sub_url = new_sub["sub_url"]
             hy2_json = new_sub.get("hy2_json_url", "")
-            hy2_link = build_hy2_link(username, new_sub.get("trojan_pass", "")) or new_sub.get("hy2_link", "")
-            hy2_section = format_hy2_section(hy2_json=hy2_json, hy2_link=hy2_link)
+            hy2_section = format_hy2_section(hy2_json=hy2_json)
             token_preview = new_sub["token"][:6] + "..." + new_sub["token"][-4:]
             msg = (
                 f"🔄 **Токен подписки успешно обновлён!**\n\n"

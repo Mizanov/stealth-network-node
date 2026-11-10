@@ -137,11 +137,10 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         self.assertIn("#Hysteria2-alice", link)
         self.assertEqual(build_hy2_link("alice", ""), "")
 
-        section = format_hy2_section("https://example.com/tok-hy2.json", link)
+        section = format_hy2_section("https://example.com/tok-hy2.json")
         self.assertIn("Конфиг Hysteria 2 (JSON)", section)
         self.assertIn("https://example.com/tok-hy2.json", section)
-        self.assertIn("Прямая ссылка Hysteria 2", section)
-        self.assertIn(link, section)
+        self.assertEqual(format_hy2_section(""), "")
 
     @patch("bot.get_user_traffic", return_value={"formatted_total": "5.0 MB", "formatted_downlink": "4.0 MB", "formatted_uplink": "1.0 MB"})
     @patch("bot.get_subscription_info", return_value={
@@ -160,7 +159,7 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
             }
         }
     })
-    async def test_info_callback_shows_hy2_in_text_and_removes_url_buttons(self, mock_meta, mock_sub, mock_traffic):
+    async def test_info_callback_shows_hy2_json_only_and_removes_url_buttons(self, mock_meta, mock_sub, mock_traffic):
         update = MagicMock()
         update.callback_query = AsyncMock()
         update.callback_query.data = "info_tg_olesya_media"
@@ -177,12 +176,11 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         msg = args[0] if args else kwargs.get("text", "")
         reply_markup = kwargs["reply_markup"]
 
-        # Text must contain subscription, Sing-Box, Hysteria2 JSON, and direct hy2 link
+        # Text must contain subscription, Sing-Box, and Hysteria2 JSON, without raw hysteria2:// URI
         self.assertIn("https://wildnode.duckdns.org/sub/2gWk5TCzW0-BR5aWd_R97Q.txt", msg)
         self.assertIn("https://wildnode.duckdns.org/sub/2gWk5TCzW0-BR5aWd_R97Q-vless.json", msg)
         self.assertIn("https://wildnode.duckdns.org/sub/2gWk5TCzW0-BR5aWd_R97Q-hy2.json", msg)
-        self.assertIn("hysteria2://hy2secretpass@", msg)
-        self.assertIn("#Hysteria2-tg_olesya_media", msg)
+        self.assertNotIn("hysteria2://", msg)
 
         # Removed URL buttons must NOT be present; only admin management callbacks remain
         buttons = [btn for row in reply_markup.inline_keyboard for btn in row]
@@ -204,7 +202,7 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         "singbox_json_url": "https://wildnode.duckdns.org/sub/newtoken1234567890-vless.json",
         "hy2_json_url": "https://wildnode.duckdns.org/sub/newtoken1234567890-hy2.json",
     })
-    async def test_rot_callback_shows_hy2_in_text_and_removes_url_buttons(self, mock_rot):
+    async def test_rot_callback_shows_hy2_json_only_and_removes_url_buttons(self, mock_rot):
         update = MagicMock()
         update.callback_query = AsyncMock()
         update.callback_query.data = "rot_tg_olesya_media"
@@ -222,7 +220,7 @@ class TestBotFormatting(unittest.IsolatedAsyncioTestCase):
         reply_markup = kwargs["reply_markup"]
 
         self.assertIn("https://wildnode.duckdns.org/sub/newtoken1234567890-hy2.json", msg)
-        self.assertIn("hysteria2://rotatedhy2pass@", msg)
+        self.assertNotIn("hysteria2://", msg)
 
         buttons = [btn for row in reply_markup.inline_keyboard for btn in row]
         button_texts = [btn.text for btn in buttons]
