@@ -400,17 +400,6 @@ chmod 660 /etc/sing-box/config.json 2>/dev/null || true
 chown root:incy-bot /etc/xray/config.json 2>/dev/null || true
 chmod 660 /etc/xray/config.json 2>/dev/null || true
 
-# Systemd service deployment & verification
-cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service
-if command -v systemd-analyze >/dev/null 2>&1; then
-    info "Verifying systemd unit security configuration..."
-    systemd-analyze verify /etc/systemd/system/incy-bot.service 2>&1 || true
-fi
-
-systemctl daemon-reload
-systemctl enable --now incy-bot.service
-systemctl restart incy-bot.service
-
 # Generate initial user cryptographically secure subscription token & files
 FIRST_USER_TOKEN=$(openssl rand -hex 16)
 VLESS_REALITY_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${REALITY_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#⚡ [Основной] VLESS-REALITY-Vision"
@@ -446,6 +435,17 @@ cat <<EOF > /opt/incy-bot/subscriptions.json
 EOF
 chown incy-bot:incy-bot /opt/incy-bot/subscriptions.json
 chmod 600 /opt/incy-bot/subscriptions.json
+
+# Systemd service deployment & verification (after initial registry creation)
+cp "$SCRIPT_DIR/bot/incy-bot.service" /etc/systemd/system/incy-bot.service
+if command -v systemd-analyze >/dev/null 2>&1; then
+    info "Verifying systemd unit security configuration..."
+    systemd-analyze verify /etc/systemd/system/incy-bot.service 2>&1 || true
+fi
+
+systemctl daemon-reload
+systemctl enable --now incy-bot.service
+systemctl restart incy-bot.service
 
 # 13. Multi-Layer Security Hardening & Automated Backups
 info "Applying multi-layer security hardening (Firewall, Fail2ban, SSH, Kernel)..."
