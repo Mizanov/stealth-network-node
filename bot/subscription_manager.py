@@ -120,6 +120,69 @@ def _sanitize_client_template(client_data: dict, domain: str) -> dict:
     return client_data
 
 
+def build_subscription_links(
+    vless_uuid: str,
+    trojan_pass: str,
+    domain: str,
+    vless_path: str,
+    trojan_path: str,
+    reality_port: int = 8443,
+    xhttp_port: int = 8444,
+    hy2_port: int = 443,
+    hy2_obfs_password: str = "sal_sec_84729472",
+    reality_public_key: str = "",
+    reality_short_id: str = "",
+    reality_sni: str = "",
+    xhttp_path: str = "xhttp",
+) -> Dict[str, str]:
+    """
+    Constructs protocol URIs and Base64-ready subscription body for a user.
+    Uses compact transport tags ([REALITY], [XHTTP], [Hy2], [WS]) for client apps.
+    """
+    vless_ws_link = (
+        f"vless://{vless_uuid}@{domain}:443?"
+        f"security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
+    )
+    trojan_ws_link = (
+        f"trojan://{trojan_pass}@{domain}:443?"
+        f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
+    )
+    hy2_link = (
+        f"hysteria2://{trojan_pass}@{domain}:{hy2_port}/?"
+        f"sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2-Salamander"
+    )
+
+    vless_reality_link = ""
+    vless_xhttp_link = ""
+    effective_sni = reality_sni.strip() if reality_sni else domain
+
+    if reality_public_key:
+        vless_reality_link = (
+            f"vless://{vless_uuid}@{domain}:{reality_port}?"
+            f"security=reality&encryption=none&pbk={reality_public_key}&"
+            f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
+            f"sni={effective_sni}&sid={reality_short_id}#⚡ [REALITY] VLESS-Vision"
+        )
+        vless_xhttp_link = (
+            f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
+            f"security=reality&encryption=none&pbk={reality_public_key}&"
+            f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
+            f"sni={effective_sni}&sid={reality_short_id}#🛡️ [XHTTP] VLESS-REALITY"
+        )
+        sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{hy2_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
+    else:
+        sub_body = f"{vless_ws_link}\n{trojan_ws_link}\n{hy2_link}\n"
+
+    return {
+        "vless_reality_link": vless_reality_link,
+        "vless_xhttp_link": vless_xhttp_link,
+        "hy2_link": hy2_link,
+        "vless_ws_link": vless_ws_link,
+        "trojan_ws_link": trojan_ws_link,
+        "sub_body": sub_body,
+    }
+
+
 def create_or_update_subscription(
     username: str,
     vless_uuid: str,
@@ -163,47 +226,27 @@ def create_or_update_subscription(
         token = generate_token()
 
         # Build subscription links
-        vless_link = f"vless://{vless_uuid}@{domain}:443?security=tls&encryption=none&type=ws&path=%2F{vless_path}#{domain}-VLESS-{username}"
-        trojan_link = f"trojan://{trojan_pass}@{domain}:443?security=tls&type=ws&path=%2F{trojan_path}#{domain}-Trojan-{username}"
-
-        vless_reality_link = ""
-        vless_xhttp_link = ""
-        vless_ws_link = vless_link
-        trojan_ws_link = trojan_link
-
-        effective_sni = reality_sni.strip() if reality_sni else domain
-
-        if reality_public_key:
-            vless_reality_link = (
-                f"vless://{vless_uuid}@{domain}:{reality_port}?"
-                f"security=reality&encryption=none&pbk={reality_public_key}&"
-                f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
-                f"sni={effective_sni}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
-            )
-            vless_xhttp_link = (
-                f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
-                f"security=reality&encryption=none&pbk={reality_public_key}&"
-                f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
-                f"sni={effective_sni}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
-            )
-            vless_ws_link = (
-                f"vless://{vless_uuid}@{domain}:443?"
-                f"security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
-            )
-            trojan_ws_link = (
-                f"trojan://{trojan_pass}@{domain}:443?"
-                f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
-            )
-            hy2_link = (
-                f"hysteria2://{trojan_pass}@{domain}:{hy2_port}/?"
-                f"sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2-Salamander"
-            )
-            sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{hy2_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
-        else:
-            hy2_link = f"hysteria2://{trojan_pass}@{domain}:{hy2_port}/?sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2-Salamander"
-            sub_body = f"{vless_link}\n{trojan_link}\n{hy2_link}\n"
-
-        sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
+        links = build_subscription_links(
+            vless_uuid=vless_uuid,
+            trojan_pass=trojan_pass,
+            domain=domain,
+            vless_path=vless_path,
+            trojan_path=trojan_path,
+            reality_port=reality_port,
+            xhttp_port=xhttp_port,
+            hy2_port=hy2_port,
+            hy2_obfs_password=hy2_obfs_password,
+            reality_public_key=reality_public_key,
+            reality_short_id=reality_short_id,
+            reality_sni=reality_sni,
+            xhttp_path=xhttp_path,
+        )
+        vless_reality_link = links["vless_reality_link"]
+        vless_xhttp_link = links["vless_xhttp_link"]
+        hy2_link = links["hy2_link"]
+        vless_ws_link = links["vless_ws_link"]
+        trojan_ws_link = links["trojan_ws_link"]
+        sub_b64 = base64.b64encode(links["sub_body"].encode("utf-8")).decode("utf-8")
 
         os.makedirs(www_dir, exist_ok=True)
 
@@ -314,7 +357,7 @@ def create_or_update_subscription(
             "singbox_json_url": singbox_json_url,
             "hy2_json_url": hy2_json_url,
             "deeplink": deeplink,
-            "vless_link": vless_reality_link if reality_public_key else vless_link,
+            "vless_link": vless_reality_link if reality_public_key else vless_ws_link,
             "vless_reality_link": vless_reality_link,
             "vless_xhttp_link": vless_xhttp_link,
             "hy2_link": hy2_link,
@@ -623,28 +666,22 @@ def sync_subscriptions_from_config(
                 # Refresh {token}.txt subscription file with latest profiles
                 try:
                     txt_path = os.path.join(www_dir, f"{token}.txt")
-                    vless_link = f"vless://{uuid}@{domain}:443?security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
-                    trojan_link = f"trojan://{pw}@{domain}:443?security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
-                    hy2_link = f"hysteria2://{pw}@{domain}:{hy2_port}/?sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2-Salamander"
-
-                    if reality_public_key:
-                        vless_reality_link = (
-                            f"vless://{uuid}@{domain}:{reality_port}?"
-                            f"security=reality&encryption=none&pbk={reality_public_key}&"
-                            f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
-                            f"sni={reality_sni or domain}&sid={reality_short_id}#⚡ [Основной] VLESS-REALITY-Vision"
-                        )
-                        vless_xhttp_link = (
-                            f"vless://{uuid}@{domain}:{xhttp_port}?"
-                            f"security=reality&encryption=none&pbk={reality_public_key}&"
-                            f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
-                            f"sni={reality_sni or domain}&sid={reality_short_id}#🛡️ [Резерв] VLESS-XHTTP-REALITY"
-                        )
-                        sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{hy2_link}\n{vless_link}\n{trojan_link}\n"
-                    else:
-                        sub_body = f"{vless_link}\n{trojan_link}\n{hy2_link}\n"
-
-                    sub_b64 = base64.b64encode(sub_body.encode("utf-8")).decode("utf-8")
+                    links = build_subscription_links(
+                        vless_uuid=uuid,
+                        trojan_pass=pw,
+                        domain=domain,
+                        vless_path=vless_path,
+                        trojan_path=trojan_path,
+                        reality_port=reality_port,
+                        xhttp_port=xhttp_port,
+                        hy2_port=hy2_port,
+                        hy2_obfs_password=hy2_obfs_password,
+                        reality_public_key=reality_public_key,
+                        reality_short_id=reality_short_id,
+                        reality_sni=reality_sni,
+                        xhttp_path=xhttp_path,
+                    )
+                    sub_b64 = base64.b64encode(links["sub_body"].encode("utf-8")).decode("utf-8")
                     with open(txt_path, "w", encoding="utf-8") as f:
                         f.write(sub_b64)
                     os.chmod(txt_path, 0o644)

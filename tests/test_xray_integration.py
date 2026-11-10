@@ -323,13 +323,13 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.assertIn("sid=0123456789abcdef", lines[0])
         self.assertIn("sni=dl.google.com", lines[0])
         self.assertIn("flow=xtls-rprx-vision", lines[0])
-        self.assertIn("#⚡ [Основной] VLESS-REALITY-Vision", lines[0])
+        self.assertIn("#⚡ [REALITY] VLESS-Vision", lines[0])
 
         # 2. Backup REALITY XHTTP
         self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:8444", lines[1])
         self.assertIn("type=xhttp", lines[1])
         self.assertIn("path=%2Fxhttp", lines[1])
-        self.assertIn("#🛡️ [Резерв] VLESS-XHTTP-REALITY", lines[1])
+        self.assertIn("#🛡️ [XHTTP] VLESS-REALITY", lines[1])
 
         # 3. Hysteria 2 UDP
         self.assertIn("hysteria2://secrettrjpass@example.org:443", lines[2])

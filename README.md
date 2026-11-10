@@ -33,8 +33,8 @@
   * 🌐 **100% обратная совместимость (WS + TLS на порту 443 TCP)**: Sing-Box продолжает обслуживать VLESS WS и Trojan WS через Nginx для классических клиентов.
 * **Универсальные профили и подписки для всех клиентов ([Incy](https://incy.app), [Happ](https://github.com), [Sing-Box](https://sing-box.sagernet.org), Shadowrocket, Surge, v2rayN/v2rayNG, Streisand)**:
   * Единая **Base64-подписка** (`.txt`), содержащая сразу **5 сетевых профилей**:
-    1. `⚡ [Основной] VLESS-REALITY-Vision` (8443/tcp, xtls-rprx-vision, Self-SNI)
-    2. `🛡️ [Резерв] VLESS-XHTTP-REALITY` (8444/tcp, xhttp, Self-SNI)
+    1. `⚡ [REALITY] VLESS-Vision` (8443/tcp, xtls-rprx-vision, Self-SNI)
+    2. `🛡️ [XHTTP] VLESS-REALITY` (8444/tcp, xhttp, Self-SNI)
     3. `🚀 [Hy2] Hysteria2-Salamander` (443/udp, QUIC, Salamander obfs, TLS 1.3)
     4. `🌐 [WS] VLESS-WS-TLS` (443/tcp, ws)
     5. `🔒 [WS] Trojan-WS-TLS` (443/tcp, ws)
