@@ -169,6 +169,26 @@ def escape_md(text: str) -> str:
     return text
 
 
+def build_hy2_link(username: str, trojan_pass: str) -> str:
+    """Constructs a direct Hysteria 2 Salamander connection URI for a user."""
+    if not trojan_pass or not HY2_PORT:
+        return ""
+    return (
+        f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?"
+        f"sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
+    )
+
+
+def format_hy2_section(hy2_json: str = "", hy2_link: str = "") -> str:
+    """Formats Hysteria 2 JSON URL and direct URI section for user detail messages."""
+    parts = []
+    if hy2_json:
+        parts.append(f"🚀 **Конфиг Hysteria 2 (JSON):**\n`{hy2_json}`")
+    if hy2_link:
+        parts.append(f"🔗 **Прямая ссылка Hysteria 2:**\n`{hy2_link}`")
+    return ("\n\n" + "\n\n".join(parts)) if parts else ""
+
+
 def get_admin_keyboard():
     keyboard = [
         ["➕ Создать ключ", "👥 Список участников"],
@@ -270,6 +290,7 @@ def create_user_singbox(username: str, extra_meta: Optional[Dict[str, Any]] = No
         return {
             "username": valid_username,
             "uuid": new_uuid,
+            "trojan_pass": new_pass,
             "token": sub_info["token"],
             "sub_url": sub_info["sub_url"],
             "subscription_url": sub_info["sub_url"],
@@ -487,11 +508,7 @@ async def deliver_user_credentials(
         )
     if not hy2_link:
         u_pass = sub_info.get("trojan_pass") or sub_info.get("password")
-        if u_pass and HY2_PORT:
-            hy2_link = (
-                f"hysteria2://{u_pass}@{DOMAIN}:{HY2_PORT}/?"
-                f"sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
-            )
+        hy2_link = build_hy2_link(username, u_pass)
 
     header = "🎉 **Поздравляем! Твой персональный ключ готов!** 🚀" if is_self_service else f"✅ **Ключ для `{username}` успешно создан!**"
     sub_line = f"`{sub_url}`" if sub_url else "_Формируется..._"
@@ -672,7 +689,7 @@ async def show_user_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     vless_uuid = udata.get("vless_uuid", "")
     trojan_pass = udata.get("trojan_pass", "")
     reality_link = f"vless://{vless_uuid}@{DOMAIN}:{REALITY_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-Vision-{username}"
-    hy2_link = f"hysteria2://{trojan_pass}@{DOMAIN}:{HY2_PORT}/?sni={DOMAIN}&insecure=0&obfs=salamander&obfs-password={HY2_OBFS_PASSWORD}#Hysteria2-{username}"
+    hy2_link = build_hy2_link(username, trojan_pass)
     xhttp_link = f"vless://{vless_uuid}@{DOMAIN}:{XHTTP_PORT}?security=reality&encryption=none&pbk={REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F{XHTTP_PATH}&sni={REALITY_SNI}&sid={REALITY_SHORT_ID}#REALITY-XHTTP-{username}"
 
     if update.callback_query:
@@ -1003,6 +1020,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             sub_url = sub_info["sub_url"]
             sb_json = sub_info["singbox_json_url"]
             hy2_json = sub_info.get("hy2_json_url", "")
+            trojan_pass = sub_info.get("trojan_pass") or (user_entry.get("trojan_pass", "") if isinstance(user_entry, dict) else "")
+            hy2_link = build_hy2_link(username, trojan_pass)
+            hy2_section = format_hy2_section(hy2_json=hy2_json, hy2_link=hy2_link)
             token_preview = sub_info["token"][:6] + "..." + sub_info["token"][-4:]
             msg = (
                 f"👤 **Пользователь:** `{username}`\n"
@@ -1013,15 +1033,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"  • ⬆️ **Загружено (Upload):** `{u_stats['formatted_uplink']}`\n"
                 f"  • 🔄 **Всего:** `{u_stats['formatted_total']}`\n\n"
                 f"📋 **Ссылка на подписку:**\n`{sub_url}`\n\n"
-                f"📦 **Конфиг Sing-Box:**\n`{sb_json}`\n"
+                f"📦 **Конфиг Sing-Box:**\n`{sb_json}`"
+                f"{hy2_section}"
             )
-            json_row = [InlineKeyboardButton("📦 Sing-Box JSON", url=sb_json)]
-            if hy2_json:
-                json_row.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=hy2_json))
 
             keyboard = [
-                [InlineKeyboardButton("🌐 Открыть подписку", url=sub_url)],
-                json_row,
                 [InlineKeyboardButton("🔄 Ротировать токен", callback_data=f"rot_{username}")],
                 [InlineKeyboardButton("🔄 Сбросить трафик", callback_data=f"rst_{username}")],
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
@@ -1042,9 +1058,18 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
         try:
-            await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.message.reply_text(
+                msg,
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                disable_web_page_preview=True
+            )
         except Exception:
-            await query.message.reply_text(msg.replace("**", "").replace("`", ""), reply_markup=InlineKeyboardMarkup(keyboard))
+            await query.message.reply_text(
+                msg.replace("**", "").replace("`", ""),
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                disable_web_page_preview=True
+            )
     elif data.startswith("rst_"):
         username = data[4:]
         reset_user_traffic(username)
@@ -1080,6 +1105,9 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 config_path=CONFIG_JSON
             )
             new_sub_url = new_sub["sub_url"]
+            hy2_json = new_sub.get("hy2_json_url", "")
+            hy2_link = build_hy2_link(username, new_sub.get("trojan_pass", "")) or new_sub.get("hy2_link", "")
+            hy2_section = format_hy2_section(hy2_json=hy2_json, hy2_link=hy2_link)
             token_preview = new_sub["token"][:6] + "..." + new_sub["token"][-4:]
             msg = (
                 f"🔄 **Токен подписки успешно обновлён!**\n\n"
@@ -1088,15 +1116,24 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"⚠️ *Предыдущая ссылка на подписку аннулирована.*\n\n"
                 f"📋 **Новая ссылка на подписку:**\n`{new_sub_url}`\n\n"
                 f"📦 **Конфиг Sing-Box:**\n`{new_sub['singbox_json_url']}`"
+                f"{hy2_section}"
             )
-            rot_buttons = [InlineKeyboardButton("🌐 Открыть новую подписку", url=new_sub_url)]
-            if new_sub.get("hy2_json_url"):
-                rot_buttons.append(InlineKeyboardButton("🚀 Hysteria2 JSON", url=new_sub["hy2_json_url"]))
             keyboard = [
-                rot_buttons,
                 [InlineKeyboardButton("🗑 Удалить ключ", callback_data=f"del_{username}")]
             ]
-            await query.message.reply_text(msg, parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+            try:
+                await query.message.reply_text(
+                    msg,
+                    parse_mode="Markdown",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    disable_web_page_preview=True
+                )
+            except Exception:
+                await query.message.reply_text(
+                    msg.replace("**", "").replace("`", ""),
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                    disable_web_page_preview=True
+                )
         except Exception as e:
             logger.error(f"Error rotating subscription token for {username}: {e}")
             await query.message.reply_text(f"❌ Ошибка ротации токена: {e}")
