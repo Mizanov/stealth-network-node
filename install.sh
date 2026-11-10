@@ -402,11 +402,11 @@ chmod 660 /etc/xray/config.json 2>/dev/null || true
 
 # Generate initial user cryptographically secure subscription token & files
 FIRST_USER_TOKEN=$(openssl rand -hex 16)
-VLESS_REALITY_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${REALITY_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#⚡ [REALITY] VLESS-Vision"
-VLESS_XHTTP_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${XHTTP_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F${XHTTP_PATH}&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#🛡️ [XHTTP] VLESS-REALITY"
-HY2_LINK="hysteria2://${FIRST_USER_PASS}@${MAIN_DOMAIN}:${HY2_PORT}/?sni=${MAIN_DOMAIN}&obfs=salamander&obfs-password=${HY2_OBFS_PASSWORD}#🚀 [Hy2] Hysteria2-Salamander"
-VLESS_WS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#🌐 [WS] VLESS-WS-TLS"
-TROJAN_WS_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#🔒 [WS] Trojan-WS-TLS"
+VLESS_REALITY_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${REALITY_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#⚡ [Vision] VLESS"
+VLESS_XHTTP_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:${XHTTP_PORT}?security=reality&encryption=none&pbk=${REALITY_PUBLIC_KEY}&headerType=none&fp=chrome&type=xhttp&path=%2F${XHTTP_PATH}&sni=${REALITY_SNI}&sid=${REALITY_SHORT_ID}#🛡️ [XHTTP] Stream"
+HY2_LINK="hysteria2://${FIRST_USER_PASS}@${MAIN_DOMAIN}:${HY2_PORT}/?sni=${MAIN_DOMAIN}&obfs=salamander&obfs-password=${HY2_OBFS_PASSWORD}#🚀 [Hy2] Hysteria2"
+VLESS_WS_LINK="vless://${FIRST_USER_UUID}@${MAIN_DOMAIN}:443?security=tls&encryption=none&type=ws&path=%2F${VLESS_PATH}#🌐 [WS] VLESS"
+TROJAN_WS_LINK="trojan://${FIRST_USER_PASS}@${MAIN_DOMAIN}:443?security=tls&type=ws&path=%2F${TROJAN_PATH}#🔒 [WS] Trojan"
 
 echo -e "${VLESS_REALITY_LINK}\n${VLESS_XHTTP_LINK}\n${HY2_LINK}\n${VLESS_WS_LINK}\n${TROJAN_WS_LINK}\n" | base64 | tr -d '\n' > "$WWW_DIR/${FIRST_USER_TOKEN}.txt"
 chmod 644 "$WWW_DIR/${FIRST_USER_TOKEN}.txt"

@@ -137,19 +137,19 @@ def build_subscription_links(
 ) -> Dict[str, str]:
     """
     Constructs protocol URIs and Base64-ready subscription body for a user.
-    Uses compact transport tags ([REALITY], [XHTTP], [Hy2], [WS]) for client apps.
+    Uses compact, non-redundant transport tags ([Vision], [XHTTP], [Hy2], [WS]) for client apps.
     """
     vless_ws_link = (
         f"vless://{vless_uuid}@{domain}:443?"
-        f"security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS-WS-TLS"
+        f"security=tls&encryption=none&type=ws&path=%2F{vless_path}#🌐 [WS] VLESS"
     )
     trojan_ws_link = (
         f"trojan://{trojan_pass}@{domain}:443?"
-        f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan-WS-TLS"
+        f"security=tls&type=ws&path=%2F{trojan_path}#🔒 [WS] Trojan"
     )
     hy2_link = (
         f"hysteria2://{trojan_pass}@{domain}:{hy2_port}/?"
-        f"sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2-Salamander"
+        f"sni={domain}&obfs=salamander&obfs-password={hy2_obfs_password}#🚀 [Hy2] Hysteria2"
     )
 
     vless_reality_link = ""
@@ -161,13 +161,13 @@ def build_subscription_links(
             f"vless://{vless_uuid}@{domain}:{reality_port}?"
             f"security=reality&encryption=none&pbk={reality_public_key}&"
             f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
-            f"sni={effective_sni}&sid={reality_short_id}#⚡ [REALITY] VLESS-Vision"
+            f"sni={effective_sni}&sid={reality_short_id}#⚡ [Vision] VLESS"
         )
         vless_xhttp_link = (
             f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
             f"security=reality&encryption=none&pbk={reality_public_key}&"
             f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
-            f"sni={effective_sni}&sid={reality_short_id}#🛡️ [XHTTP] VLESS-REALITY"
+            f"sni={effective_sni}&sid={reality_short_id}#🛡️ [XHTTP] Stream"
         )
         sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{hy2_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
     else:

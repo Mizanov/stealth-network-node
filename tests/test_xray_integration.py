@@ -323,29 +323,29 @@ class TestDualTransportSubscription(unittest.TestCase):
         self.assertIn("sid=0123456789abcdef", lines[0])
         self.assertIn("sni=dl.google.com", lines[0])
         self.assertIn("flow=xtls-rprx-vision", lines[0])
-        self.assertIn("#⚡ [REALITY] VLESS-Vision", lines[0])
+        self.assertIn("#⚡ [Vision] VLESS", lines[0])
 
         # 2. Backup REALITY XHTTP
         self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:8444", lines[1])
         self.assertIn("type=xhttp", lines[1])
         self.assertIn("path=%2Fxhttp", lines[1])
-        self.assertIn("#🛡️ [XHTTP] VLESS-REALITY", lines[1])
+        self.assertIn("#🛡️ [XHTTP] Stream", lines[1])
 
         # 3. Hysteria 2 UDP
         self.assertIn("hysteria2://secrettrjpass@example.org:443", lines[2])
         self.assertIn("sni=example.org", lines[2])
         self.assertIn("obfs=salamander", lines[2])
         self.assertIn("obfs-password=sal_sec_84729472", lines[2])
-        self.assertIn("#🚀 [Hy2] Hysteria2-Salamander", lines[2])
+        self.assertIn("#🚀 [Hy2] Hysteria2", lines[2])
 
         # 4. Legacy VLESS WS
         self.assertIn("vless://aaaa-bbbb-cccc-dddd@example.org:443", lines[3])
         self.assertIn("type=ws", lines[3])
-        self.assertIn("#🌐 [WS] VLESS-WS-TLS", lines[3])
+        self.assertIn("#🌐 [WS] VLESS", lines[3])
 
         # 5. Legacy Trojan WS
         self.assertIn("trojan://secrettrjpass@example.org:443", lines[4])
-        self.assertIn("#🔒 [WS] Trojan-WS-TLS", lines[4])
+        self.assertIn("#🔒 [WS] Trojan", lines[4])
 
         # Check vless client JSON
         client_json = os.path.join(self.www_dir, f"{token}-vless.json")
