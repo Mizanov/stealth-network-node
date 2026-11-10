@@ -137,7 +137,7 @@ def build_subscription_links(
 ) -> Dict[str, str]:
     """
     Constructs protocol URIs and Base64-ready subscription body for a user.
-    Uses descriptive protocol tags ([XTLS-Reality-Vision], [XHTTP], [Hy2], [WS]) for client apps.
+    Uses descriptive protocol tags ([XTLS], [XHTTP], [Hy2], [WS]) for client apps.
     """
     vless_ws_link = (
         f"vless://{vless_uuid}@{domain}:443?"
@@ -161,13 +161,13 @@ def build_subscription_links(
             f"vless://{vless_uuid}@{domain}:{reality_port}?"
             f"security=reality&encryption=none&pbk={reality_public_key}&"
             f"headerType=none&fp=chrome&spx=%2F&type=tcp&flow=xtls-rprx-vision&"
-            f"sni={effective_sni}&sid={reality_short_id}#⚡ [XTLS-Reality-Vision] VLESS"
+            f"sni={effective_sni}&sid={reality_short_id}#⚡ [XTLS] VLESS-Reality-Vision"
         )
         vless_xhttp_link = (
             f"vless://{vless_uuid}@{domain}:{xhttp_port}?"
             f"security=reality&encryption=none&pbk={reality_public_key}&"
             f"headerType=none&fp=chrome&type=xhttp&path=%2F{xhttp_path}&"
-            f"sni={effective_sni}&sid={reality_short_id}#🛡️ [XHTTP] VLESS"
+            f"sni={effective_sni}&sid={reality_short_id}#🛡️ [XHTTP] VLESS-Reality"
         )
         sub_body = f"{vless_reality_link}\n{vless_xhttp_link}\n{hy2_link}\n{vless_ws_link}\n{trojan_ws_link}\n"
     else:
